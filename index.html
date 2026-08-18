@@ -1,0 +1,1165 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+<title>PharmaSafe — Pharmacovigilance Analytics</title>
+
+<!-- PWA: installable on Android + iOS home screens -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f1615">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PharmaSafe">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root{
+  --ink:#12181b; --ink-soft:#3a4441;
+  --paper:#f3f4ef; --panel:#ffffff; --panel-2:#eef0ea;
+  --line:#dde1d8; --line-strong:#c7cdc0;
+  --muted:#5e6b64;
+  --accent:#155e63; --accent-dark:#0e3b3e; --accent-soft:#dfeceb;
+  --signal:#b3261e; --signal-soft:#f7e6e4;
+  --ok:#2f6e4f; --ok-soft:#e4efe7;
+  --warn:#9c6b14; --warn-soft:#f4ecdc;
+  --radius:14px; --radius-sm:9px;
+  --serif:'Fraunces',Georgia,serif;
+  --sans:'IBM Plex Sans',system-ui,Arial,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+:root[data-theme="dark"]{
+  --ink:#eef2ef; --ink-soft:#c3cdc7;
+  --paper:#0f1615; --panel:#161f1e; --panel-2:#1c2725;
+  --line:#26332f; --line-strong:#37473f;
+  --muted:#8ea39d;
+  --accent:#3fb3a7; --accent-dark:#7fd4c9; --accent-soft:#173330;
+  --signal:#ef6a5f; --signal-soft:#3a1f1c;
+  --ok:#7fd4a0; --ok-soft:#173028;
+  --warn:#e0b256; --warn-soft:#332612;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;transition:background .25s ease,color .25s ease}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- shell ---------- */
+.shell{display:flex;min-height:100vh}
+.sidebar{width:256px;flex:none;background:linear-gradient(180deg,#0f1615 0%,#0c1211 100%);color:#dfe6e4;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brandblock{padding:28px 22px 20px;border-bottom:1px solid #ffffff14}
+.brandblock .mark{font-family:var(--serif);font-weight:600;font-size:24px;color:#fff;letter-spacing:.2px}
+.brandblock .mark em{font-style:normal;color:#7fd4c9}
+.brandblock .tag{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#7d928c;margin-top:7px;font-family:var(--mono)}
+nav.side{padding:16px 12px;display:flex;flex-direction:column;gap:2px;flex:1}
+nav.side button{all:unset;cursor:pointer;padding:11px 13px;border-radius:9px;font-size:13.5px;font-weight:500;color:#c7d3d0;display:flex;align-items:center;gap:11px;letter-spacing:.01em;transition:background .15s,color .15s,transform .1s;border-left:2.5px solid transparent}
+nav.side button .n{font-family:var(--mono);font-size:11px;color:#68807b;width:18px;transition:color .15s}
+nav.side button:hover{background:#ffffff0c;color:#fff}
+nav.side button.active{background:linear-gradient(90deg,#155e63,#134f53);color:#fff;border-left-color:#7fd4c9}
+nav.side button.active .n{color:#bfe9e2}
+.sidefoot{padding:18px 22px 24px;font-size:10.5px;color:#68807b;border-top:1px solid #ffffff14;font-family:var(--mono);line-height:1.7}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:4;background:color-mix(in srgb,var(--paper) 90%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:17px 32px;display:flex;justify-content:space-between;align-items:center;gap:14px}
+.topbar h1{font-family:var(--serif);font-size:22px;font-weight:600;margin:0;letter-spacing:-.01em}
+.topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.dot.live{background:var(--ok);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.autoselect{font-family:var(--sans);font-size:12px;font-weight:500;padding:7px 9px;border-radius:8px;border:1px solid var(--line-strong);background:var(--panel);color:var(--ink-soft)}
+.autonote{max-width:980px;margin:10px auto 0;padding:0 32px;font-size:11.5px;color:var(--muted);line-height:1.5}
+@media(max-width:900px){.autonote{padding:0 16px}}
+.flash{animation:flashbg 1s ease}
+@keyframes flashbg{0%{background:var(--accent-soft)}100%{background:transparent}}
+.pill{font-family:var(--sans);font-weight:500;font-size:11.5px;padding:6px 12px;border-radius:99px;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-strong);color:var(--muted)}
+.pill.on{border-color:#2f6e4f55;color:var(--ok);background:var(--ok-soft)}
+.pill.off{border-color:#b3261e55;color:var(--signal);background:var(--signal-soft)}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.themebtn{all:unset;cursor:pointer;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1px solid var(--line-strong);color:var(--ink-soft);font-size:15px}
+.themebtn:hover{background:var(--panel-2)}
+.loadbar{height:2px;background:var(--accent);width:0%;transition:width .3s ease;position:sticky;top:0;z-index:5}
+.loadbar.active{animation:load 1.1s ease-in-out infinite}
+@keyframes load{0%{width:10%;margin-left:0}50%{width:60%;margin-left:20%}100%{width:10%;margin-left:90%}}
+
+.content{max-width:980px;width:100%;margin:0 auto;padding:30px 32px 70px;flex:1}
+section{display:none;animation:rise .35s ease}
+section.active{display:block}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ---------- typographic scale ---------- */
+h2{font-family:var(--serif);font-size:26px;font-weight:600;margin:0 0 4px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin:0 0 8px}
+.lede{color:var(--muted);font-size:14.5px;line-height:1.6;max-width:62ch;margin:0 0 22px}
+
+/* ---------- hero ---------- */
+.hero{padding:40px 36px;border-radius:18px;background:linear-gradient(155deg,#0f1615 0%,#122120 100%);color:#eef1ef;position:relative;overflow:hidden;box-shadow:0 8px 28px rgba(15,22,20,.18)}
+.hero::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 88% 8%,#1f7d7555,transparent 55%);pointer-events:none}
+.hero::before{content:"";position:absolute;inset:0;background-image:linear-gradient(#ffffff08 1px,transparent 1px),linear-gradient(90deg,#ffffff08 1px,transparent 1px);background-size:26px 26px;mask-image:linear-gradient(180deg,#000 0%,transparent 75%);pointer-events:none}
+.hero .eyebrow{color:#7fd4c9}
+.hero h1{font-family:var(--serif);font-size:35px;line-height:1.16;margin:0 0 13px;font-weight:600;max-width:20ch;position:relative;letter-spacing:-.01em}
+.hero p{max-width:56ch;color:#c3cdc9;line-height:1.65;font-size:14.5px;position:relative}
+.hero .btn{margin-top:20px;position:relative;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+
+.statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin:22px 0;box-shadow:0 1px 3px rgba(15,22,20,.06)}
+.statgrid .cell{background:var(--panel);padding:19px 20px;transition:background .2s}
+.statgrid .cell:hover{background:var(--panel-2)}
+.statgrid .num{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--ink);letter-spacing:-.01em}
+.statgrid .lbl{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.4}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:24px;margin:16px 0;box-shadow:0 1px 2px rgba(15,22,20,.04);transition:background .25s,border-color .25s,box-shadow .2s}
+.card h3{font-family:var(--serif);font-weight:600;font-size:19px;margin:0 0 12px}
+.card h4{font-size:12.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:20px 0 10px;font-weight:600}
+.card h4:first-child{margin-top:0}
+.note{color:var(--muted);font-size:13px;line-height:1.65}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:700px){.row2,.row3{grid-template-columns:1fr}.statgrid{grid-template-columns:repeat(2,1fr)}}
+
+label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;letter-spacing:.01em}
+input{width:100%;padding:12px 13px;border:1.5px solid var(--line-strong);border-radius:var(--radius-sm);margin:0 0 14px;font-family:var(--sans);font-size:14.5px;background:var(--panel);color:var(--ink)}
+input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+
+/* ---------- auth screen ---------- */
+#authModal{position:fixed;inset:0;z-index:50;background:rgba(10,15,14,.5);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity .22s ease}
+#authModal.show{opacity:1}
+.authbox{position:relative;width:100%;max-width:400px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:34px 32px;box-shadow:0 20px 60px rgba(15,22,20,.28);transform:translateY(14px) scale(.97);transition:transform .22s ease}
+#authModal.show .authbox{transform:translateY(0) scale(1)}
+.modalclose{all:unset;position:absolute;top:14px;right:16px;font-size:15px;color:var(--muted);cursor:pointer;padding:4px 8px;border-radius:6px;line-height:1}
+.modalclose:hover{background:var(--panel-2);color:var(--ink)}
+.skiplink{all:unset;display:block;text-align:center;margin-top:16px;font-size:12.5px;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.skiplink:hover{color:var(--ink)}
+.authbrand{font-family:var(--serif);font-weight:600;font-size:24px;text-align:center;margin-bottom:2px}
+.authbrand em{font-style:normal;color:var(--accent)}
+.authsub{text-align:center;color:var(--muted);font-size:12.5px;margin-bottom:26px}
+.authtabs{display:flex;background:var(--panel-2);border-radius:10px;padding:4px;margin-bottom:22px}
+.authtabs button{all:unset;flex:1;text-align:center;padding:9px 0;border-radius:8px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;transition:background .15s,color .15s}
+.authtabs button.active{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(15,22,20,.08)}
+.authform{display:none}
+.authform.active{display:block;animation:rise .22s ease}
+.authform .btn{width:100%;margin-top:4px}
+.autherr{color:var(--signal);font-size:12.5px;margin:-8px 0 14px;display:none}
+.autherr.show{display:block}
+.authnote{margin-top:18px;font-size:11px;color:var(--muted);line-height:1.6;text-align:center}
+.userpill{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:99px;border:1px solid var(--line-strong);font-size:12px;color:var(--ink-soft);cursor:pointer;transition:background .15s,opacity .2s}
+.userpill:hover{background:var(--panel-2)}
+.loginlink{all:unset;padding:7px 14px;border-radius:99px;border:1px solid var(--line-strong);font-size:12px;font-weight:600;color:var(--accent-dark);cursor:pointer;transition:background .15s}
+.loginlink:hover{background:var(--accent-soft)}
+.btn{border:0;border-radius:var(--radius-sm);padding:12px 19px;background:var(--accent);color:#fff;font-weight:600;font-size:14px;cursor:pointer;font-family:var(--sans);transition:background .15s,transform .1s,box-shadow .15s;box-shadow:0 1px 2px rgba(15,22,20,.08)}
+.btn:hover{background:var(--accent-dark);box-shadow:0 2px 6px rgba(15,22,20,.14)}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.55;cursor:wait}
+.btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.btn.gray{background:var(--accent-soft);color:var(--accent-dark);box-shadow:none}
+.btn.gray:hover{filter:brightness(.95)}
+.btn.ghost{background:transparent;color:var(--accent-dark);border:1.5px solid var(--line-strong);padding:8px 14px;font-size:12.5px;box-shadow:none}
+.btn.ghost:hover{background:var(--panel-2);border-color:var(--accent)}
+
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:9px 10px;border-bottom:1.5px solid var(--line-strong);font-weight:600}
+td{padding:10px 10px;border-bottom:1px solid var(--line);font-size:13.5px;vertical-align:top;font-family:var(--sans);color:var(--ink-soft)}
+td:first-child{font-family:var(--sans);color:var(--ink);font-weight:500}
+tr:hover td{background:var(--panel-2)}
+
+.badge{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:99px;background:var(--ok-soft);color:var(--ok);font-weight:600;font-size:13px;font-family:var(--sans)}
+.badge.red{background:var(--signal-soft);color:var(--signal)}
+.err{color:var(--signal);font-weight:600;font-size:13.5px}
+footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-family:var(--sans)}
+
+/* ---------- forest plot ---------- */
+.forest{margin:18px 0 6px}
+.forest svg{width:100%;height:auto;display:block}
+.forest .axis-lbl{font-family:var(--mono);font-size:10.5px;fill:var(--muted)}
+.forest .ref{stroke:var(--line-strong);stroke-width:1;stroke-dasharray:3 3}
+.forest .whisker{stroke:var(--ink-soft);stroke-width:2}
+.forest .cap{stroke:var(--ink-soft);stroke-width:2}
+.forest-legend{display:flex;gap:18px;font-size:11.5px;color:var(--muted);margin-top:6px;flex-wrap:wrap}
+.forest-legend span{display:inline-flex;align-items:center;gap:6px}
+.forest-legend i{width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--accent)}
+
+/* ---------- misc components ---------- */
+.chips{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 18px}
+.chip{border:1px solid var(--line-strong);border-radius:99px;padding:8px 14px;font-size:12.5px;font-family:var(--sans);color:var(--ink-soft);background:var(--panel)}
+.chip b{color:var(--ink);font-weight:600}
+.skel{background:linear-gradient(90deg,var(--panel-2) 25%,var(--line-strong) 37%,var(--panel-2) 63%);background-size:400% 100%;animation:sk 1.3s ease infinite;border-radius:8px}
+@keyframes sk{0%{background-position:100% 0}100%{background-position:0 0}}
+.skel-line{height:14px;margin:8px 0}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.vs{display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:20px;color:var(--muted);padding:0 6px}
+.leaderrow{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+.leaderrow .rank{font-family:var(--mono);color:var(--muted);width:22px;font-size:12.5px}
+.leaderrow .name{flex:1;font-size:13.5px}
+.leaderrow .bar{height:8px;border-radius:4px;background:var(--accent);flex:none}
+.leaderrow .val{font-family:var(--mono);font-size:12px;color:var(--muted);width:60px;text-align:right}
+
+/* ---------- install banner ---------- */
+.installbar{display:none;align-items:center;gap:12px;background:var(--accent);color:#fff;padding:12px 18px;font-size:13px;position:sticky;top:0;z-index:6}
+.installbar.show{display:flex}
+.installbar button{all:unset;cursor:pointer;background:#ffffff2a;padding:7px 13px;border-radius:8px;font-weight:600;font-size:12.5px}
+.installbar .x{margin-left:auto;background:transparent;padding:4px 8px;opacity:.8}
+
+/* ---------- responsive ---------- */
+@media(max-width:900px){
+  .shell{flex-direction:column}
+  .sidebar{width:100%;height:auto;position:sticky;top:0;flex-direction:row;align-items:center;overflow-x:auto}
+  .brandblock{border-bottom:0;border-right:1px solid #ffffff17;padding:14px 16px;white-space:nowrap}
+  .brandblock .tag{display:none}
+  nav.side{flex-direction:row;padding:8px}
+  nav.side button{white-space:nowrap}
+  .sidefoot{display:none}
+  .content{padding:22px 16px 50px}
+  .hero{padding:28px 22px}.hero h1{font-size:27px}
+  .topbar{padding:14px 16px}
+}
+</style></head><body>
+
+<div id="authModal">
+  <div class="authbox">
+    <button class="modalclose" onclick="hideAuthPrompt()" aria-label="Close">✕</button>
+    <div class="authbrand">Pharma<em>Safe</em></div>
+    <div class="authsub" id="authModalSub">FAERS / AEMS Analytics — academic prototype</div>
+    <div class="authtabs">
+      <button id="tabLogin" class="active" onclick="switchAuthTab('login')">Log in</button>
+      <button id="tabSignup" onclick="switchAuthTab('signup')">Sign up</button>
+    </div>
+
+    <form id="loginForm" class="authform active" onsubmit="return handleLogin(event)">
+      <label>Email</label>
+      <input id="loginEmail" type="email" autocomplete="username" required placeholder="you@school.edu">
+      <label>Password</label>
+      <input id="loginPassword" type="password" autocomplete="current-password" required placeholder="••••••••">
+      <p class="autherr" id="loginErr"></p>
+      <button class="btn" type="submit" id="loginSubmitBtn">Log in</button>
+    </form>
+
+    <form id="signupForm" class="authform" onsubmit="return handleSignup(event)">
+      <label>Name</label>
+      <input id="signupName" type="text" autocomplete="name" required placeholder="Jane Doe">
+      <label>Email</label>
+      <input id="signupEmail" type="email" autocomplete="username" required placeholder="you@school.edu">
+      <label>Password</label>
+      <input id="signupPassword" type="password" autocomplete="new-password" required minlength="6" placeholder="At least 6 characters">
+      <p class="autherr" id="signupErr"></p>
+      <button class="btn" type="submit" id="signupSubmitBtn">Create account</button>
+    </form>
+
+    <p class="authnote">Accounts are created and stored securely by Netlify Identity — real accounts that work across devices, not just this browser.</p>
+    <p class="authnote" id="identityWarning" style="display:none;color:var(--signal)">⚠️ Netlify Identity isn't enabled for this site yet. In your Netlify dashboard, go to <b>Project configuration → Identity → Enable Identity</b>, then reload this page.</p>
+    <button class="skiplink" onclick="hideAuthPrompt()">Skip for now — keep browsing</button>
+  </div>
+</div>
+
+<div id="appShell">
+<div class="installbar" id="androidInstall">
+  <span>Install PharmaSafe as an app on this device</span>
+  <button onclick="doInstall()">Install</button>
+  <button class="x" onclick="dismissInstall('androidInstall')">✕</button>
+</div>
+<div class="installbar" id="iosInstall">
+  <span>To install: tap <b>Share</b> → <b>Add to Home Screen</b></span>
+  <button class="x" onclick="dismissInstall('iosInstall')">✕</button>
+</div>
+<div class="loadbar" id="loadbar"></div>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brandblock">
+      <div class="mark">Pharma<em>Safe</em></div>
+      <div class="tag">FAERS / AEMS Analytics</div>
+    </div>
+    <nav class="side">
+      <button data-t="home" onclick="go('home')"><span class="n">01</span>Overview</button>
+      <button data-t="drug" onclick="go('drug')"><span class="n">02</span>Drug analysis</button>
+      <button data-t="compare" onclick="go('compare')"><span class="n">03</span>Compare drugs</button>
+      <button data-t="signal" onclick="go('signal')"><span class="n">04</span>Signal detection</button>
+      <button data-t="outcomes" onclick="go('outcomes')"><span class="n">05</span>Outcome severity</button>
+      <button data-t="trend" onclick="go('trend')"><span class="n">06</span>Trend</button>
+      <button data-t="case" onclick="go('case')"><span class="n">07</span>Report viewer</button>
+      <button data-t="leaderboard" onclick="go('leaderboard')"><span class="n">08</span>Leaderboard</button>
+      <button data-t="recent" onclick="go('recent')"><span class="n">09</span>Recent reports</button>
+    </nav>
+    <div class="sidefoot">Source: FDA AEMS/FAERS<br>via openFDA · live queries<br>Not for clinical decisions</div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <h1 id="pageTitle">Overview</h1>
+      <div class="topbar-right">
+        <span class="pill" id="agoPill" title="Time since last successful data fetch"><span class="dot live"></span><span id="agoTxt">—</span></span>
+        <select id="autoSelect" class="autoselect" onchange="setAutoRefresh(this.value)" title="Auto-refresh interval">
+          <option value="0">Auto-refresh: Off</option>
+          <option value="60000">Every 1 min</option>
+          <option value="300000" selected>Every 5 min</option>
+          <option value="900000">Every 15 min</option>
+        </select>
+        <button class="btn ghost" id="refreshNowBtn" onclick="refreshNow()" style="padding:7px 12px;font-size:12px">Refresh now</button>
+        <span class="pill" id="statusPill"><span class="dot"></span><span id="statusTxt">Checking connection…</span></span>
+        <button class="loginlink" id="loginLink" onclick="showAuthPrompt()">Log in / Sign up</button>
+        <span class="userpill" id="userPill" onclick="handleLogout()" title="Click to log out" style="display:none">👤 <span id="userPillName">—</span> · Log out</span>
+        <button class="themebtn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme">☾</button>
+      </div>
+    </div>
+    <div class="autonote" id="autonote">Live mode: this page fetches fresh data on its own — Overview, Recent Reports, and Leaderboard load automatically, and any section you run stays in sync in the background. openFDA's underlying FAERS dataset is refreshed by FDA quarterly, so auto-refresh keeps you current with whatever's in openFDA right now rather than inventing new reports between releases.</div>
+
+    <div class="content">
+
+      <section id="home" class="active">
+        <div class="hero">
+          <p class="eyebrow">Research prototype</p>
+          <h1>Statistical screening for real-world adverse event signals</h1>
+          <p>Queries FDA AEMS/FAERS adverse-event data live through openFDA — no fabricated cases, no cached demo data. Nine tools for disproportionality screening, comparison, and case-level review.</p>
+          <button class="btn" onclick="go('drug')" style="background:#fff;color:#0e3b3e">Analyze a drug →</button>
+        </div>
+
+        <div class="statgrid">
+          <div class="cell"><div class="num" id="total">—</div><div class="lbl">Public FDA reports indexed</div></div>
+          <div class="cell"><div class="num" id="updated">—</div><div class="lbl">Dataset last updated</div></div>
+          <div class="cell"><div class="num">ROR</div><div class="lbl">Reporting odds ratio</div></div>
+          <div class="cell"><div class="num">PRR</div><div class="lbl">Proportional reporting ratio</div></div>
+        </div>
+
+        <div class="card">
+          <h3>Responsible interpretation</h3>
+          <p class="note">FDA states that adverse-event reports are not extensively validated and do not by themselves establish causality. A single report may list several drugs and reactions without linking a specific drug to a specific outcome. This tool therefore labels every result a <b>statistical screening signal</b>, never a confirmed safety finding — and every ROR/PRR calculation ships with its 95% confidence interval so the uncertainty is visible, not hidden in a single number.</p>
+        </div>
+      </section>
+
+      <section id="drug">
+        <p class="eyebrow">02 · Drug analysis</p>
+        <h2>Reaction profile by drug</h2>
+        <p class="lede">Pulls every reaction term reported against a medicinal product, ranked by report volume, plus a live sex breakdown of the patients who experienced them.</p>
+        <div class="card">
+          <label>Generic or medicinal product name</label>
+          <input id="drugName" placeholder="e.g. atorvastatin" onkeydown="if(event.key==='Enter')drugSearch()">
+          <button class="btn" id="drugBtn" onclick="drugSearch()">Analyze</button>
+          <div id="drugOut"></div>
+        </div>
+      </section>
+
+      <section id="compare">
+        <p class="eyebrow">03 · Compare drugs</p>
+        <h2>Side-by-side comparison</h2>
+        <p class="lede">Compares total report volume and top reaction terms for two drugs, so relative risk profiles are visible at a glance.</p>
+        <div class="card">
+          <div class="row2">
+            <div><label>Drug A</label><input id="cmpA" placeholder="e.g. atorvastatin"></div>
+            <div><label>Drug B</label><input id="cmpB" placeholder="e.g. rosuvastatin"></div>
+          </div>
+          <button class="btn" id="cmpBtn" onclick="compareDrugs()">Compare</button>
+          <div id="cmpOut"></div>
+        </div>
+      </section>
+
+      <section id="signal">
+        <p class="eyebrow">04 · Signal detection</p>
+        <h2>Disproportionality screen</h2>
+        <p class="lede">Builds the 2×2 contingency table for a drug–reaction pair across the full FAERS index and computes ROR and PRR with 95% confidence intervals.</p>
+        <div class="card">
+          <div class="row2">
+            <div><label>Drug</label><input id="sigDrug" placeholder="e.g. atorvastatin"></div>
+            <div><label>Reaction / MedDRA PT</label><input id="sigRx" placeholder="e.g. myalgia"></div>
+          </div>
+          <button class="btn" id="sigBtn" onclick="signal()">Calculate</button>
+          <div id="sigOut"></div>
+        </div>
+      </section>
+
+      <section id="outcomes">
+        <p class="eyebrow">05 · Outcome severity</p>
+        <h2>Serious outcome breakdown</h2>
+        <p class="lede">Of the reports naming this drug, what share were coded as death, hospitalization, disability, life-threatening, or other serious outcomes.</p>
+        <div class="card">
+          <label>Drug</label>
+          <input id="outDrug" placeholder="e.g. atorvastatin" onkeydown="if(event.key==='Enter')outcomes()">
+          <button class="btn" id="outBtn" onclick="outcomes()">Analyze outcomes</button>
+          <div id="outOut"></div>
+        </div>
+      </section>
+
+      <section id="trend">
+        <p class="eyebrow">06 · Trend</p>
+        <h2>Report volume over time</h2>
+        <p class="lede">Report counts by receive date — useful for spotting reporting spikes after label changes, media coverage, or REMS updates.</p>
+        <div class="card">
+          <label>Drug</label>
+          <input id="trendDrug" placeholder="e.g. atorvastatin" onkeydown="if(event.key==='Enter')trend()">
+          <button class="btn" id="trendBtn" onclick="trend()">Load trend</button>
+          <div id="trendMsg"></div>
+          <canvas id="trendChart" style="margin-top:18px"></canvas>
+        </div>
+      </section>
+
+      <section id="case">
+        <p class="eyebrow">07 · Report viewer</p>
+        <h2>Individual case safety report</h2>
+        <p class="lede">Look up one public FAERS report by its safety report ID and see exactly what was submitted.</p>
+        <div class="card">
+          <label>FDA safety report ID</label>
+          <input id="caseId" placeholder="e.g. 6176304-1" onkeydown="if(event.key==='Enter')caseView()">
+          <button class="btn" id="caseBtn" onclick="caseView()">View report</button>
+          <div id="caseOut"></div>
+        </div>
+      </section>
+
+      <section id="leaderboard">
+        <p class="eyebrow">08 · Leaderboard</p>
+        <h2>Most reported drugs &amp; reactions</h2>
+        <p class="lede">The highest-volume medicinal products and reaction terms across the entire public FAERS index — a snapshot of what's being reported most right now.</p>
+        <div class="card">
+          <button class="btn" id="leadBtn" onclick="leaderboard()">Load leaderboard</button>
+          <div id="leadOut"></div>
+        </div>
+      </section>
+
+      <section id="recent">
+        <p class="eyebrow">09 · Recent reports</p>
+        <h2>Latest public submissions</h2>
+        <p class="lede">The 20 most recently received reports in the openFDA index.</p>
+        <div class="card">
+          <button class="btn" id="recentBtn" onclick="recent()">Load recent reports</button>
+          <div id="recentOut"></div>
+        </div>
+      </section>
+
+    </div>
+    <footer>PharmaSafe academic prototype · Data: FDA AEMS/FAERS via openFDA, queried live · Not for clinical decision-making</footer>
+  </div>
+</div>
+</div>
+
+<script>
+const $=x=>document.getElementById(x);
+const BASE="https://api.fda.gov/drug/event.json";
+const LABEL_BASE="https://api.fda.gov/drug/label.json";
+
+const TITLES={home:'Overview',drug:'Drug analysis',compare:'Compare drugs',signal:'Signal detection',outcomes:'Outcome severity',trend:'Trend',case:'Report viewer',leaderboard:'Leaderboard',recent:'Recent reports'};
+let currentSection='home';
+function go(x){
+  document.querySelectorAll('section').forEach(s=>s.classList.remove('active'));
+  $(x).classList.add('active');
+  document.querySelectorAll('nav.side button').forEach(b=>b.classList.toggle('active',b.dataset.t===x));
+  $('pageTitle').textContent=TITLES[x]||'PharmaSafe';
+  currentSection=x;
+  // No-input sections load themselves automatically the first time you open them.
+  if(x==='recent' && !state.recent.loaded)recent();
+  if(x==='leaderboard' && !state.leaderboard.loaded)leaderboard();
+}
+function esc(x){return String(x??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function q(s){return '"' + String(s).replace(/"/g,'\\"') + '"'}
+
+/* ---------- FAERS coded-field lookups ---------- */
+const SEX_MAP={'1':'Male','2':'Female','0':'Unknown','':'Unknown'};
+const AGE_UNIT_MAP={'800':'decades','801':'years','802':'months','803':'weeks','804':'days','805':'hours'};
+const AGE_UNIT_SINGULAR={'800':'decade','801':'year','802':'month','803':'week','804':'day','805':'hour'};
+const DRUG_ROLE_MAP={'1':'Suspect','2':'Concomitant','3':'Interacting'};
+function fmtSex(code){
+  if(code===undefined||code===null||String(code).trim()==='')return 'Unknown';
+  const n=Number(code);
+  if(!Number.isNaN(n))return SEX_MAP[String(n)]||'Unknown';
+  return SEX_MAP[String(code).trim()]||'Not reported';
+}
+function fmtAge(age,unit){
+  if(age===undefined||age===null||age==='')return 'Not reported';
+  const n=Number(age);
+  const unitWord=n===1?AGE_UNIT_SINGULAR[unit]:AGE_UNIT_MAP[unit];
+  return unitWord?`${n} ${unitWord}`:`${n}`;
+}
+function fmtRole(code){return DRUG_ROLE_MAP[String(code??'')]||'Not reported';}
+function dq(drug){return 'patient.drug.medicinalproduct:'+q(drug)}
+function rq(rx){return 'patient.reaction.reactionmeddrapt:'+q(rx)}
+
+/* ---------- theme ---------- */
+function toggleTheme(){
+  const cur=document.documentElement.getAttribute('data-theme');
+  const next=cur==='dark'?'light':'dark';
+  if(next==='dark'){document.documentElement.setAttribute('data-theme','dark');$('themeBtn').textContent='☀';}
+  else{document.documentElement.removeAttribute('data-theme');$('themeBtn').textContent='☾';}
+}
+
+/* ---------- loading bar ---------- */
+let loadCount=0;
+function loadStart(){loadCount++;$('loadbar').classList.add('active');}
+function loadEnd(){loadCount=Math.max(0,loadCount-1);if(loadCount===0)$('loadbar').classList.remove('active');}
+
+/* ---------- resilient fetch layer ---------- */
+const PROXIES=[
+  u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
+  u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
+  u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u)
+];
+let workingMode=null;
+
+async function rawGet(url,timeoutMs){
+  const fetchPromise=fetch(url,{cache:'no-store'});
+  const timeoutPromise=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timed out')),timeoutMs||15000));
+  return Promise.race([fetchPromise,timeoutPromise]);
+}
+async function handleResp(r){
+  if(r.status===404){lastFetchAt=Date.now();return {meta:{results:{total:0}},results:[]};}
+  if(!r.ok){
+    let msg='Request failed ('+r.status+')';
+    try{const j=await r.json();if(j.error&&j.error.message)msg=j.error.message;}catch(e){}
+    throw new Error(msg);
+  }
+  lastFetchAt=Date.now();
+  return r.json();
+}
+async function fda(params,base){
+  loadStart();
+  try{
+    const url=new URL(base||BASE);
+    Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));
+    const target=url.toString();
+    if(workingMode==='direct')return await handleResp(await rawGet(target));
+    if(typeof workingMode==='number')return await handleResp(await rawGet(PROXIES[workingMode](target)));
+    const attempts=[{mode:'direct',url:target},...PROXIES.map((p,i)=>({mode:i,url:p(target)}))];
+    const errs=[];
+    for(const a of attempts){
+      try{
+        const r=await rawGet(a.url);
+        const data=await handleResp(r);
+        workingMode=a.mode;
+        return data;
+      }catch(e){errs.push((typeof a.mode==='number'?'proxy'+a.mode:'direct')+': '+e.message);}
+    }
+    throw Object.assign(new Error('network-blocked'),{isNetworkBlock:true,errs});
+  }finally{loadEnd();}
+}
+async function total(search){
+  const p={limit:1}; if(search)p.search=search;
+  const x=await fda(p);
+  return Number(x?.meta?.results?.total||0);
+}
+function ci(a,b,c,d){
+  a+=.5;b+=.5;c+=.5;d+=.5;
+  const r=(a*d)/(b*c), se=Math.sqrt(1/a+1/b+1/c+1/d);
+  return [r, Math.exp(Math.log(r)-1.96*se), Math.exp(Math.log(r)+1.96*se)];
+}
+function prr(a,b,c,d){a+=.5;b+=.5;c+=.5;d+=.5;return (a/(a+b))/(c/(c+d));}
+
+async function withBtn(id,fn,silent){
+  if(silent){await fn();return;}
+  const btn=$(id);const old=btn.textContent;btn.disabled=true;btn.textContent='Working…';
+  try{await fn();trackToolUse();}finally{btn.disabled=false;btn.textContent=old;}
+}
+function flashUpdated(id){const el=$(id);if(!el)return;el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');}
+function skeleton(rows){
+  return `<div style="margin-top:10px">${Array.from({length:rows||4}).map((_,i)=>`<div class="skel skel-line" style="width:${85-i*7}%"></div>`).join('')}</div>`;
+}
+function networkErrorHTML(errs){
+  return `<div class="card" style="border-color:#b3261e55;background:var(--signal-soft)">
+    <h3 style="color:var(--signal)">Can't reach openFDA from this preview</h3>
+    <p class="note">Every connection attempt failed the same way (${esc(errs.join(' | '))}). When that happens across unrelated servers at once, it means <b>this preview window isn't permitted to make external network calls</b> — a viewer sandbox limit, not a bug in the page.</p>
+    <p class="note"><b>Fix:</b> download this file and open it in a real browser tab (Safari/Chrome) instead of the in-chat preview — Share → Open in Safari, not the built-in viewer.</p>
+    <button class="btn gray" onclick="location.reload()">Retry now</button>
+  </div>`;
+}
+function errHTML(e){return e && e.isNetworkBlock ? networkErrorHTML(e.errs) : `<p class="err">${esc(e.message)}</p>`;}
+
+function csvDownload(filename,rows){
+  const csv=rows.map(r=>r.map(c=>{const s=String(c??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+function countUp(el,target){
+  const start=0,dur=700,t0=performance.now();
+  function step(t){
+    const p=Math.min(1,(t-t0)/dur);
+    el.textContent=Math.round(start+(target-start)*(1-Math.pow(1-p,3))).toLocaleString();
+    if(p<1)requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+const PAL=['#155e63','#9c6b14','#2f6e4f','#b3261e','#5e6b64','#3fb3a7','#c78a2e'];
+
+/* ---------- auto-refresh engine ---------- */
+const state={
+  drug:{loaded:false,name:null}, compare:{loaded:false,a:null,b:null},
+  signal:{loaded:false,drug:null,rx:null}, outcomes:{loaded:false,name:null},
+  trend:{loaded:false,name:null}, leaderboard:{loaded:false}, recent:{loaded:false}
+};
+let lastFetchAt=null;
+function formatAgo(ts){
+  if(!ts)return '—';
+  const s=Math.floor((Date.now()-ts)/1000);
+  if(s<5)return 'just now';
+  if(s<60)return s+'s ago';
+  const m=Math.floor(s/60); if(m<60)return m+'m ago';
+  const h=Math.floor(m/60); return h+'h ago';
+}
+setInterval(()=>{$('agoTxt').textContent=formatAgo(lastFetchAt);},2000);
+
+let autoRefreshMs=300000, autoTimer=null;
+function setAutoRefresh(ms){
+  autoRefreshMs=Number(ms);
+  if(autoTimer){clearInterval(autoTimer);autoTimer=null;}
+  if(autoRefreshMs>0)autoTimer=setInterval(autoTick,autoRefreshMs);
+}
+function autoTick(){ if(!document.hidden)refreshNow(true); }
+async function refreshNow(silent){
+  await boot(silent);
+  if(currentSection==='recent')await recent(silent);
+  else if(currentSection==='leaderboard')await leaderboard(silent);
+  else if(currentSection==='drug' && state.drug.loaded)await drugSearch(silent);
+  else if(currentSection==='compare' && state.compare.loaded)await compareDrugs(silent);
+  else if(currentSection==='signal' && state.signal.loaded)await signal(silent);
+  else if(currentSection==='outcomes' && state.outcomes.loaded)await outcomes(silent);
+  else if(currentSection==='trend' && state.trend.loaded)await trend(silent);
+}
+document.addEventListener('visibilitychange',()=>{
+  // Catch up immediately when the app is reopened, instead of waiting out a stale interval.
+  if(!document.hidden && lastFetchAt && (Date.now()-lastFetchAt)>autoRefreshMs && autoRefreshMs>0)refreshNow(true);
+});
+
+/* ---------- boot / status ---------- */
+async function boot(silent){
+  try{
+    const x=await fda({limit:1});
+    if(silent)$('total').textContent=Number(x?.meta?.results?.total||0).toLocaleString();
+    else countUp($('total'),Number(x?.meta?.results?.total||0));
+    $('updated').textContent=x?.meta?.last_updated||'Quarterly';
+    setStatus(true);
+    const existingErr=$('bootErr'); if(existingErr)existingErr.remove();
+  }catch(e){
+    setStatus(false);
+    if(!silent){
+      $('total').textContent='—'; $('updated').textContent='—';
+      const existingErr=$('bootErr'); if(existingErr)existingErr.remove();
+      document.querySelector('.hero').insertAdjacentHTML('afterend','<div id="bootErr">'+errHTML(e)+'</div>');
+    }
+  }
+}
+function setStatus(online){
+  const p=$('statusPill');
+  p.className='pill '+(online?'on':'off');
+  $('statusTxt').textContent=online?'Live — openFDA connected':'Offline';
+}
+
+/* ---------- drug analysis ---------- */
+let reactionChart, sexChart;
+async function fetchSexDistribution(searchQuery){
+  for(const field of ['patient.patientsex.exact','patient.patientsex']){
+    try{
+      const r=await fda({search:searchQuery,count:field});
+      if(r && r.results && r.results.length)return r;
+    }catch(e){/* try next field syntax */}
+  }
+  return {results:[]};
+}
+async function drugSearch(silent){
+  await withBtn('drugBtn',async()=>{
+    const n=silent?state.drug.name:$('drugName').value.trim();
+    if(!n)return alert('Enter a drug');
+    if(!silent)$('drugOut').innerHTML=skeleton(5);
+    try{
+      const [reports,x,sexX]=await Promise.all([
+        total(dq(n)),
+        fda({search:dq(n),count:'patient.reaction.reactionmeddrapt.exact'}),
+        fetchSexDistribution(dq(n))
+      ]);
+      const rx=(x.results||[]).map(a=>({term:a.term,count:a.count})).sort((a,b)=>b.count-a.count).slice(0,30);
+      const top10=rx.slice(0,10);
+      const rows=rx.map(r=>`<tr><td>${esc(r.term)}</td><td>${r.count.toLocaleString()}</td><td><button class="btn gray" style="padding:6px 11px;font-size:11.5px" onclick="useSignal('${esc(n).replace(/'/g,"\\'")}','${esc(r.term).replace(/'/g,"\\'")}')">Screen this pair</button></td></tr>`).join('');
+      const sexCounts={Male:0,Female:0,Unknown:0};
+      (sexX.results||[]).forEach(s=>{const label=fmtSex(s.term);sexCounts[label]=(sexCounts[label]||0)+s.count;});
+      const sexData=['Male','Female','Unknown'].map(label=>({label,count:sexCounts[label]}));
+
+      $('drugOut').innerHTML=`
+        <div class="chips"><span class="chip"><b>${reports.toLocaleString()}</b>&nbsp;total reports</span><span class="chip"><b>${rx.length}</b>&nbsp;distinct reactions (top 30 shown)</span></div>
+        <h4>Top reported reactions</h4>
+        <canvas id="reactChart" height="${Math.max(180,top10.length*28)}"></canvas>
+        <h4>Patient sex distribution</h4>
+        <canvas id="sexChart" height="150"></canvas>
+        ${sexData.every(s=>s.count===0)?'<p class="note">openFDA did not return sex data for this drug — it may not be recorded in these reports.</p>':''}
+        <h4>All matched reaction terms</h4>
+        <table><tr><th>Reaction term</th><th>Reports</th><th></th></tr>${rows||'<tr><td colspan=3>No reaction data found.</td></tr>'}</table>
+        <p class="note">Reaction counts are report counts returned by openFDA — not incidence rates, and not adjusted for exposure.</p>
+        <div class="actions">
+          <button class="btn ghost" onclick='exportDrugCSV(${JSON.stringify(n)},${JSON.stringify(rx)})'>Export CSV</button>
+          <button class="btn ghost" onclick="go('outcomes');$('outDrug').value=${JSON.stringify(n)};outcomes()">Outcome severity →</button>
+        </div>`;
+
+      if(reactionChart)reactionChart.destroy();
+      reactionChart=new Chart($('reactChart'),{type:'bar',data:{labels:top10.map(r=>r.term),datasets:[{data:top10.map(r=>r.count),backgroundColor:PAL[0],borderRadius:4}]},
+        options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
+      if(sexChart)sexChart.destroy();
+      sexChart=new Chart($('sexChart'),{type:'bar',data:{labels:sexData.map(s=>s.label),datasets:[{data:sexData.map(s=>s.count),backgroundColor:[PAL[0],PAL[1],PAL[4]],borderRadius:4}]},
+        options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw.toLocaleString()} reports`}}},scales:{x:{beginAtZero:true,grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false},ticks:{autoSkip:false}}}}});
+      state.drug={loaded:true,name:n};
+      if(silent)flashUpdated('drugOut');
+    }catch(e){
+      if(silent)console.warn('auto-refresh (drug) failed:',e.message);
+      else $('drugOut').innerHTML=errHTML(e);
+    }
+  },silent);
+}
+function exportDrugCSV(name,rx){csvDownload('pharmasafe_'+name.replace(/\W+/g,'_')+'_reactions.csv',[['reaction_term','report_count'],...rx.map(r=>[r.term,r.count])]);}
+function useSignal(d,r){$('sigDrug').value=d;$('sigRx').value=r;go('signal');signal()}
+
+/* ---------- compare ---------- */
+let cmpChartA,cmpChartB,cmpTotalsChart;
+async function compareDrugs(silent){
+  await withBtn('cmpBtn',async()=>{
+    const a=silent?state.compare.a:$('cmpA').value.trim(), b=silent?state.compare.b:$('cmpB').value.trim();
+    if(!a||!b)return alert('Enter both drugs');
+    if(!silent)$('cmpOut').innerHTML=skeleton(5);
+    try{
+      const [totA,totB,xA,xB]=await Promise.all([
+        total(dq(a)),total(dq(b)),
+        fda({search:dq(a),count:'patient.reaction.reactionmeddrapt.exact'}),
+        fda({search:dq(b),count:'patient.reaction.reactionmeddrapt.exact'})
+      ]);
+      const topA=(xA.results||[]).slice(0,6), topB=(xB.results||[]).slice(0,6);
+      $('cmpOut').innerHTML=`
+        <h4>Total reports</h4>
+        <canvas id="cmpTotals" height="70"></canvas>
+        <div class="row2" style="margin-top:22px">
+          <div><h4>${esc(a)} — top reactions</h4><canvas id="cmpChartA" height="180"></canvas></div>
+          <div><h4>${esc(b)} — top reactions</h4><canvas id="cmpChartB" height="180"></canvas></div>
+        </div>
+        <p class="note" style="margin-top:16px">Comparing raw report counts only — differences in overall prescribing volume between drugs are not controlled for, so a higher count does not by itself imply a higher rate.</p>`;
+      if(cmpTotalsChart)cmpTotalsChart.destroy();
+      cmpTotalsChart=new Chart($('cmpTotals'),{type:'bar',data:{labels:[a,b],datasets:[{data:[totA,totB],backgroundColor:[PAL[0],PAL[1]],borderRadius:4}]},
+        options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
+      if(cmpChartA)cmpChartA.destroy();
+      cmpChartA=new Chart($('cmpChartA'),{type:'bar',data:{labels:topA.map(r=>r.term),datasets:[{data:topA.map(r=>r.count),backgroundColor:PAL[0],borderRadius:4}]},
+        options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
+      if(cmpChartB)cmpChartB.destroy();
+      cmpChartB=new Chart($('cmpChartB'),{type:'bar',data:{labels:topB.map(r=>r.term),datasets:[{data:topB.map(r=>r.count),backgroundColor:PAL[1],borderRadius:4}]},
+        options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
+      state.compare={loaded:true,a,b};
+      if(silent)flashUpdated('cmpOut');
+    }catch(e){
+      if(silent)console.warn('auto-refresh (compare) failed:',e.message);
+      else $('cmpOut').innerHTML=errHTML(e);
+    }
+  },silent);
+}
+
+/* ---------- outcome severity ---------- */
+let outChart;
+async function outcomes(silent){
+  await withBtn('outBtn',async()=>{
+    const n=silent?state.outcomes.name:$('outDrug').value.trim();
+    if(!n)return alert('Enter a drug');
+    if(!silent)$('outOut').innerHTML=skeleton(5);
+    try{
+      const fields=[['seriousnessdeath','Death'],['seriousnesshospitalization','Hospitalization'],['seriousnesslifethreatening','Life-threatening'],['seriousnessdisabling','Disabling'],['seriousnessother','Other serious']];
+      const totReports=await total(dq(n));
+      const counts=await Promise.all(fields.map(([f])=>total(dq(n)+' AND '+f+':1')));
+      const data=fields.map(([f,label],i)=>({label,count:counts[i],pct:totReports?counts[i]/totReports*100:0}));
+      $('outOut').innerHTML=`
+        <div class="chips"><span class="chip"><b>${totReports.toLocaleString()}</b>&nbsp;total reports for ${esc(n)}</span></div>
+        <canvas id="outChart" height="200"></canvas>
+        <table style="margin-top:16px"><tr><th>Outcome</th><th>Reports</th><th>% of total</th></tr>
+          ${data.map(d=>`<tr><td>${esc(d.label)}</td><td>${d.count.toLocaleString()}</td><td>${d.pct.toFixed(1)}%</td></tr>`).join('')}
+        </table>
+        <p class="note" style="margin-top:14px">Outcome flags are self-reported and not mutually exclusive — one report can carry several serious-outcome flags at once, so percentages don't sum to 100%.</p>`;
+      if(outChart)outChart.destroy();
+      outChart=new Chart($('outChart'),{type:'bar',data:{labels:data.map(d=>d.label),datasets:[{data:data.map(d=>d.count),backgroundColor:[PAL[3],PAL[1],PAL[3],PAL[5],PAL[4]],borderRadius:4}]},
+        options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
+      state.outcomes={loaded:true,name:n};
+      if(silent)flashUpdated('outOut');
+    }catch(e){
+      if(silent)console.warn('auto-refresh (outcomes) failed:',e.message);
+      else $('outOut').innerHTML=errHTML(e);
+    }
+  },silent);
+}
+
+/* ---------- signal detection + forest plot ---------- */
+function forestPlotSVG(r,lo,hi,flag){
+  const w=560,h=120,padL=52,padR=24,top=26;
+  const dmin=Math.min(0.2, lo*0.7, 1), dmax=Math.max(6, hi*1.25, 1);
+  const lx=v=>{const lv=Math.log10(Math.max(v,0.01));const lmin=Math.log10(dmin),lmax=Math.log10(dmax);return padL+(lv-lmin)/(lmax-lmin)*(w-padL-padR);};
+  const ticks=[0.25,0.5,1,2,4,8,16].filter(t=>t>=dmin&&t<=dmax);
+  const x1=lx(lo),x2=lx(hi),xr=lx(r),xref=lx(1);
+  const color=flag?'var(--signal)':'var(--accent)';
+  return `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+    <line class="ref" x1="${xref}" y1="14" x2="${xref}" y2="${h-24}" />
+    <text class="axis-lbl" x="${xref}" y="10" text-anchor="middle">1.0 (no assoc.)</text>
+    ${ticks.map(t=>`<text class="axis-lbl" x="${lx(t)}" y="${h-6}" text-anchor="middle">${t}</text>`).join('')}
+    <line class="whisker" x1="${x1}" y1="${top+34}" x2="${x2}" y2="${top+34}"/>
+    <line class="cap" x1="${x1}" y1="${top+28}" x2="${x1}" y2="${top+40}"/>
+    <line class="cap" x1="${x2}" y1="${top+28}" x2="${x2}" y2="${top+40}"/>
+    <circle cx="${xr}" cy="${top+34}" r="6" fill="${color}"/>
+  </svg>`;
+}
+async function signal(silent){
+  await withBtn('sigBtn',async()=>{
+    const drug=silent?state.signal.drug:$('sigDrug').value.trim(), rx=silent?state.signal.rx:$('sigRx').value.trim();
+    if(!drug||!rx)return alert('Enter both');
+    if(!silent)$('sigOut').innerHTML=skeleton(4);
+    try{
+      const [alln,dn,rn,a]=await Promise.all([total(),total(dq(drug)),total(rq(rx)),total(dq(drug)+' AND '+rq(rx))]);
+      const b2=Math.max(dn-a,0), c=Math.max(rn-a,0), d=Math.max(alln-a-b2-c,0);
+      const [r,lo,hi]=ci(a,b2,c,d), p=prr(a,b2,c,d);
+      const flag=(a>=3 && r>2 && lo>1);
+      const badge=flag?'<span class="badge red">⬤ Potential statistical signal</span>':'<span class="badge">⬤ Not flagged by research screen</span>';
+      $('sigOut').innerHTML=`<div class="card" style="margin-top:18px">
+        <h3>${esc(drug)} → ${esc(rx)}</h3>
+        ${badge}
+        <div class="forest">${forestPlotSVG(r,lo,hi,flag)}</div>
+        <div class="forest-legend"><span><i style="background:${flag?'var(--signal)':'var(--accent)'}"></i>Point estimate (ROR)</span><span>Whiskers = 95% confidence interval</span><span>Dashed line = ROR of 1 (no association)</span></div>
+        <h4>Contingency table</h4>
+        <table><tr><th>Cell</th><th>Reports</th></tr>
+          <tr><td>a — drug + reaction</td><td>${a}</td></tr>
+          <tr><td>b — drug + other reactions</td><td>${b2}</td></tr>
+          <tr><td>c — other drugs + reaction</td><td>${c}</td></tr>
+          <tr><td>d — other drugs + other reactions</td><td>${d}</td></tr>
+        </table>
+        <div class="chips" style="margin-top:16px">
+          <span class="chip">ROR&nbsp;<b>${r.toFixed(2)}</b>&nbsp;(${lo.toFixed(2)}–${hi.toFixed(2)})</span>
+          <span class="chip">PRR&nbsp;<b>${p.toFixed(2)}</b></span>
+        </div>
+        <p class="note" style="margin-top:14px"><b>Research screen:</b> a ≥ 3, ROR &gt; 2 and lower 95% CI &gt; 1. This is a project-defined screening rule, not an FDA regulatory threshold. A disproportionality signal is not proof of causality.</p>
+        <button class="btn gray" id="labelBtn" onclick="label('${esc(drug).replace(/'/g,"\\'")}')">Check FDA label evidence</button>
+        <div id="labelOut"></div>
+      </div>`;
+      state.signal={loaded:true,drug,rx};
+      if(silent)flashUpdated('sigOut');
+    }catch(e){
+      if(silent)console.warn('auto-refresh (signal) failed:',e.message);
+      else $('sigOut').innerHTML=errHTML(e);
+    }
+  },silent);
+}
+/* Common INN/BAN (international) → USAN (US-label) name differences.
+   FDA labels use the US name, so a raw international-name search often
+   returns nothing even though a matching label genuinely exists. */
+const NAME_ALIASES={
+  paracetamol:'acetaminophen', salbutamol:'albuterol', adrenaline:'epinephrine',
+  noradrenaline:'norepinephrine', frusemide:'furosemide', glibenclamide:'glyburide',
+  amitriptylin:'amitriptyline', diclofenac:'diclofenac', isoprenaline:'isoproterenol',
+  lignocaine:'lidocaine', pethidine:'meperidine', trimethoprim:'trimethoprim'
+};
+async function labelLookup(name){
+  const candidates=[name];
+  const lower=name.toLowerCase().trim();
+  if(NAME_ALIASES[lower])candidates.push(NAME_ALIASES[lower]);
+  const fields=['openfda.generic_name','openfda.substance_name','openfda.brand_name'];
+  for(const cand of candidates){
+    for(const field of fields){
+      const x=await fda({search:field+':'+q(cand),limit:1},LABEL_BASE);
+      if((x.results||[]).length)return {results:x.results,matchedOn:cand,field};
+    }
+  }
+  return {results:[],matchedOn:null,field:null};
+}
+async function label(d){
+  const btn=$('labelBtn');btn.disabled=true;btn.textContent='Working…';
+  try{
+    const {results,matchedOn,field}=await labelLookup(d);
+    if(!results.length){
+      const lower=d.toLowerCase().trim();
+      const hint=NAME_ALIASES[lower]?'':' If this is an international (INN) drug name, try the US name — e.g. "paracetamol" is labeled as "acetaminophen" in FDA data.';
+      $('labelOut').innerHTML=`<p class="note">No matching FDA label found for "${esc(d)}" across generic name, substance name, or brand name.${hint}</p>`;
+      return;
+    }
+    const z=results[0];const sections={};
+    ['boxed_warning','warnings_and_cautions','adverse_reactions','contraindications'].forEach(k=>{if(z[k]&&z[k].length)sections[k]=z[k];});
+    const SECTION_TITLES={boxed_warning:'Boxed warning',warnings_and_cautions:'Warnings and cautions',adverse_reactions:'Adverse reactions',contraindications:'Contraindications'};
+    const matchNote=matchedOn.toLowerCase()!==d.toLowerCase().trim()?`<p class="note">Matched via <b>${esc(matchedOn)}</b> (searched ${esc(field)}) — FDA labels use US drug naming, which can differ from the name you entered.</p>`:'';
+    const sectionsHtml=Object.entries(sections).map(([k,arr])=>`<h4>${esc(SECTION_TITLES[k]||k)}</h4><p class="note">${arr.map(esc).join('</p><p class="note">')}</p>`).join('');
+    $('labelOut').innerHTML=matchNote+(Object.keys(sections).length?`<div style="margin-top:10px">${sectionsHtml}</div>`:'<p class="note">Label found, but none of the tracked sections (boxed warning, warnings, adverse reactions, contraindications) were present in this record.</p>');
+  }catch(e){$('labelOut').innerHTML=errHTML(e);}
+  finally{btn.disabled=false;btn.textContent='Check FDA label evidence';}
+}
+
+/* ---------- report viewer ---------- */
+async function caseView(){
+  await withBtn('caseBtn',async()=>{
+    const id=$('caseId').value.trim();
+    if(!id)return alert('Enter a report ID');
+    $('caseOut').innerHTML=skeleton(4);
+    try{
+      const x=await fda({search:'safetyreportid:'+q(id),limit:1});
+      const results=x.results||[];
+      if(!results.length){$('caseOut').innerHTML='<p class="err">Report not found in openFDA.</p>';return;}
+      const z=results[0], p=z.patient||{};
+      const drugs=(p.drug||[]).map(d=>({name:d.medicinalproduct,role:fmtRole(d.drugcharacterization),indication:d.drugindication}));
+      const reactions=(p.reaction||[]).map(r=>r.reactionmeddrapt).filter(Boolean);
+      const receivedFmt=z.receivedate&&/^\d{8}$/.test(z.receivedate)?`${z.receivedate.slice(0,4)}-${z.receivedate.slice(4,6)}-${z.receivedate.slice(6,8)}`:esc(z.receivedate)||'Not reported';
+      const seriousFmt=z.serious==='1'?'Yes':z.serious==='2'?'No':'Not reported';
+      const drugsRows=drugs.map(d=>`<tr><td>${esc(d.name)||'Unnamed product'}</td><td>${esc(d.role)}</td><td>${esc(d.indication)||'—'}</td></tr>`).join('');
+      $('caseOut').innerHTML=`<div class="card" style="margin-top:14px">
+        <h3>Report ${esc(z.safetyreportid)}</h3>
+        <div class="chips">
+          <span class="chip">Received&nbsp;<b>${receivedFmt}</b></span>
+          <span class="chip">Serious&nbsp;<b>${seriousFmt}</b></span>
+          <span class="chip">Country&nbsp;<b>${esc(z.occurcountry)||'Not reported'}</b></span>
+          <span class="chip">Age&nbsp;<b>${fmtAge(p.patientonsetage,p.patientonsetageunit)}</b></span>
+          <span class="chip">Sex&nbsp;<b>${fmtSex(p.patientsex)}</b></span>
+        </div>
+        <h4>Drugs reported</h4>
+        <table><tr><th>Product</th><th>Role</th><th>Indication</th></tr>${drugsRows||'<tr><td colspan=3>No drug data found.</td></tr>'}</table>
+        <h4>Reactions reported</h4><p class="note">${reactions.map(esc).join(', ')||'None reported'}</p>
+      </div>`;
+    }catch(e){$('caseOut').innerHTML=errHTML(e);}
+  });
+}
+
+/* ---------- trend ---------- */
+let chart;
+async function trend(silent){
+  await withBtn('trendBtn',async()=>{
+    const n=silent?state.trend.name:$('trendDrug').value.trim();
+    if(!n)return alert('Enter a drug');
+    if(!silent)$('trendMsg').innerHTML=skeleton(1);
+    try{
+      const x=await fda({search:dq(n),count:'receivedate'});
+      $('trendMsg').innerHTML='';
+      const raw=(x.results||[]).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+      const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const monthly={};
+      raw.forEach(a=>{
+        const t=String(a.time||'');
+        if(!/^\d{8}$/.test(t))return;
+        const key=t.slice(0,6); // YYYYMM
+        monthly[key]=(monthly[key]||0)+a.count;
+      });
+      const keys=Object.keys(monthly).sort();
+      const labels=keys.map(k=>`${MONTHS[Number(k.slice(4,6))-1]} ${k.slice(0,4)}`);
+      const counts=keys.map(k=>monthly[k]);
+      if(chart)chart.destroy();
+      chart=new Chart($('trendChart'),{type:'line',data:{labels,datasets:[{label:'FDA reports for '+n+' (by month)',data:counts,borderColor:PAL[0],backgroundColor:PAL[0]+'22',fill:true,tension:.15,pointRadius:0}]},
+        options:{plugins:{tooltip:{callbacks:{title:items=>items[0]?.label||''}}},
+          scales:{x:{type:'category',grid:{display:false},ticks:{maxTicksLimit:12,autoSkip:true}},y:{beginAtZero:true,title:{display:true,text:'Reports'},grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}}}}});
+      state.trend={loaded:true,name:n};
+      if(silent)flashUpdated('trendChart');
+    }catch(e){
+      if(silent){console.warn('auto-refresh (trend) failed:',e.message);return;}
+      if(e.isNetworkBlock){$('trendMsg').innerHTML=errHTML(e);}
+      else{$('trendMsg').innerHTML='';alert(e.message);}
+    }
+  },silent);
+}
+
+/* ---------- leaderboard ---------- */
+async function leaderboard(silent){
+  await withBtn('leadBtn',async()=>{
+    if(!silent)$('leadOut').innerHTML=skeleton(8);
+    try{
+      const [drugsX,rxX]=await Promise.all([
+        fda({count:'patient.drug.medicinalproduct.exact'}),
+        fda({count:'patient.reaction.reactionmeddrapt.exact'})
+      ]);
+      const topDrugs=(drugsX.results||[]).slice(0,12);
+      const topRx=(rxX.results||[]).slice(0,12);
+      const maxD=Math.max(...topDrugs.map(d=>d.count),1);
+      const maxR=Math.max(...topRx.map(d=>d.count),1);
+      const rowsHtml=(items,max)=>items.map((it,i)=>`<div class="leaderrow"><span class="rank">${String(i+1).padStart(2,'0')}</span><span class="name">${esc(it.term)}</span><span class="bar" style="width:${Math.max(6,it.count/max*90)}px"></span><span class="val">${it.count.toLocaleString()}</span></div>`).join('');
+      $('leadOut').innerHTML=`<div class="row2">
+        <div><h4>Top reported drugs</h4>${rowsHtml(topDrugs,maxD)}</div>
+        <div><h4>Top reported reactions</h4>${rowsHtml(topRx,maxR)}</div>
+      </div>
+      <p class="note" style="margin-top:16px">Unfiltered counts across the entire public FAERS index — reflects report volume, not risk, and is skewed toward widely prescribed, long-marketed drugs.</p>`;
+      state.leaderboard.loaded=true;
+      if(silent)flashUpdated('leadOut');
+    }catch(e){
+      if(silent)console.warn('auto-refresh (leaderboard) failed:',e.message);
+      else $('leadOut').innerHTML=errHTML(e);
+    }
+  },silent);
+}
+
+/* ---------- recent ---------- */
+async function recent(silent){
+  await withBtn('recentBtn',async()=>{
+    if(!silent)$('recentOut').innerHTML=skeleton(6);
+    try{
+      const x=await fda({limit:20,sort:'receivedate:desc'});
+      const out=(x.results||[]).map(z=>{
+        const p=z.patient||{};
+        return {id:z.safetyreportid,received:z.receivedate,age:p.patientonsetage,ageUnit:p.patientonsetageunit,sex:p.patientsex,
+          drugs:(p.drug||[]).map(d=>d.medicinalproduct).filter(Boolean).slice(0,8),
+          reactions:(p.reaction||[]).map(r=>r.reactionmeddrapt).filter(Boolean).slice(0,8)};
+      });
+      const rows=out.map(r=>{
+        const receivedFmt=r.received&&/^\d{8}$/.test(r.received)?`${r.received.slice(0,4)}-${r.received.slice(4,6)}-${r.received.slice(6,8)}`:esc(r.received)||'—';
+        return `<tr><td>${esc(r.id)}</td><td>${receivedFmt}</td><td>${fmtAge(r.age,r.ageUnit)}</td><td>${fmtSex(r.sex)}</td><td>${esc(r.drugs.join(', '))||'—'}</td><td>${esc(r.reactions.join(', '))||'—'}</td></tr>`;
+      }).join('');
+      $('recentOut').innerHTML=`<table><tr><th>ID</th><th>Received</th><th>Age</th><th>Sex</th><th>Drugs</th><th>Reactions</th></tr>${rows||'<tr><td colspan=6>No data.</td></tr>'}</table>
+        <div class="actions"><button class="btn ghost" onclick='exportRecentCSV(${JSON.stringify(out)})'>Export CSV</button></div>`;
+      state.recent.loaded=true;
+      if(silent)flashUpdated('recentOut');
+    }catch(e){
+      if(silent)console.warn('auto-refresh (recent) failed:',e.message);
+      else $('recentOut').innerHTML=errHTML(e);
+    }
+  },silent);
+}
+function exportRecentCSV(out){csvDownload('pharmasafe_recent_reports.csv',[['id','received','age','sex','drugs','reactions'],...out.map(r=>[r.id,r.received,fmtAge(r.age,r.ageUnit),fmtSex(r.sex),r.drugs.join('; '),r.reactions.join('; ')])]);}
+
+/* ---------- PWA: service worker + install prompts ---------- */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{/* non-fatal: shell caching just won't be available */});
+  });
+}
+function dismissInstall(id){$(id).classList.remove('show');}
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',(e)=>{
+  e.preventDefault();
+  deferredPrompt=e;
+  const already=window.matchMedia('(display-mode: standalone)').matches;
+  if(!already)$('androidInstall').classList.add('show');
+});
+async function doInstall(){
+  if(!deferredPrompt)return;
+  dismissInstall('androidInstall');
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt=null;
+}
+(function iosPrompt(){
+  const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  const already=window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
+  if(isIOS && !already)$('iosInstall').classList.add('show');
+})();
+
+/* ---------- real auth via Netlify Identity (accounts stored & managed by Netlify) ---------- */
+let currentUser=null;
+
+function switchAuthTab(tab){
+  $('tabLogin').classList.toggle('active',tab==='login');
+  $('tabSignup').classList.toggle('active',tab==='signup');
+  $('loginForm').classList.toggle('active',tab==='login');
+  $('signupForm').classList.toggle('active',tab==='signup');
+  $('loginErr').classList.remove('show');
+  $('signupErr').classList.remove('show');
+}
+
+function authBusy(btnId,busy,label){
+  const b=$(btnId);
+  b.disabled=busy;
+  b.textContent=busy?'Please wait…':label;
+}
+
+function showAuthPrompt(reason){
+  const m=$('authModal');
+  $('authModalSub').textContent=reason==='nudge'
+    ? "You've tried a couple of tools — sign in to save your work, or keep browsing without an account."
+    : 'FAERS / AEMS Analytics — academic prototype';
+  m.style.display='flex';
+  requestAnimationFrame(()=>m.classList.add('show'));
+}
+function hideAuthPrompt(){
+  const m=$('authModal');
+  m.classList.remove('show');
+  setTimeout(()=>{ if(!m.classList.contains('show'))m.style.display='none'; },220);
+}
+
+async function handleSignup(e){
+  e.preventDefault();
+  const name=$('signupName').value.trim();
+  const email=$('signupEmail').value.trim().toLowerCase();
+  const pw=$('signupPassword').value;
+  const errEl=$('signupErr');
+  errEl.classList.remove('show');
+  if(!window.netlifyIdentity || !netlifyIdentity.gotrue){
+    errEl.textContent='Netlify Identity is not enabled for this site yet.';
+    errEl.classList.add('show');
+    return false;
+  }
+  authBusy('signupSubmitBtn',true,'Create account');
+  try{
+    await netlifyIdentity.gotrue.signup(email,pw,{full_name:name});
+    // Some Netlify Identity setups require email confirmation before login works.
+    try{
+      const user=await netlifyIdentity.gotrue.login(email,pw,true); // remember=true → session persists for future visits
+      netlifyIdentity._user=user;
+      enterApp(user);
+      hideAuthPrompt();
+    }catch(loginErr){
+      errEl.textContent='Account created! Check your email to confirm your address, then log in below.';
+      errEl.style.color='var(--ok)';
+      errEl.classList.add('show');
+      switchAuthTab('login');
+      $('loginEmail').value=email;
+    }
+  }catch(err){
+    errEl.style.color='var(--signal)';
+    errEl.textContent=err.message&&err.message.includes('already')?'An account with this email already exists — try logging in instead.':(err.message||'Sign-up failed. Please try again.');
+    errEl.classList.add('show');
+  }finally{
+    authBusy('signupSubmitBtn',false,'Create account');
+  }
+  return false;
+}
+
+async function handleLogin(e){
+  e.preventDefault();
+  const email=$('loginEmail').value.trim().toLowerCase();
+  const pw=$('loginPassword').value;
+  const errEl=$('loginErr');
+  errEl.classList.remove('show');
+  if(!window.netlifyIdentity || !netlifyIdentity.gotrue){
+    errEl.textContent='Netlify Identity is not enabled for this site yet.';
+    errEl.classList.add('show');
+    return false;
+  }
+  authBusy('loginSubmitBtn',true,'Log in');
+  try{
+    const user=await netlifyIdentity.gotrue.login(email,pw,true); // remember=true → stay logged in on future visits
+    netlifyIdentity._user=user;
+    enterApp(user);
+    hideAuthPrompt();
+  }catch(err){
+    errEl.textContent=/confirm/i.test(err.message||'')?'Please confirm your email address first — check your inbox for the confirmation link.':'Incorrect email or password.';
+    errEl.classList.add('show');
+  }finally{
+    authBusy('loginSubmitBtn',false,'Log in');
+  }
+  return false;
+}
+
+function handleLogout(){
+  const pill=$('userPill');
+  if(pill){pill.style.pointerEvents='none';pill.style.opacity='.55';}
+  if($('userPillName'))$('userPillName').textContent='Logging out…';
+  if(!window.netlifyIdentity){location.reload();return;}
+  try{
+    Promise.resolve(netlifyIdentity.logout()).catch(()=>{}).finally(()=>location.reload());
+  }catch(e){
+    location.reload();
+  }
+}
+
+function enterApp(user){
+  currentUser=user;
+  const name=user.user_metadata?.full_name || user.email;
+  $('userPillName').textContent=name;
+  $('userPill').style.display='flex';
+  $('loginLink').style.display='none';
+}
+
+function initApp(){
+  go('home');
+  boot();
+  setAutoRefresh($('autoSelect').value);
+}
+
+/* Tool-use tracking → shows one skippable sign-in nudge after ~2 tool uses, never for logged-in users */
+function trackToolUse(){
+  if(currentUser)return;
+  if(localStorage.getItem('pharmasafe_auth_prompt_shown'))return;
+  const n=parseInt(localStorage.getItem('pharmasafe_tool_uses')||'0',10)+1;
+  localStorage.setItem('pharmasafe_tool_uses',String(n));
+  if(n>=2){
+    localStorage.setItem('pharmasafe_auth_prompt_shown','1');
+    showAuthPrompt('nudge');
+  }
+}
+
+if(window.netlifyIdentity){
+  netlifyIdentity.on('init',user=>{ if(user)enterApp(user); });
+  netlifyIdentity.on('logout',()=>{ location.reload(); });
+  netlifyIdentity.on('error',err=>{ console.error('Netlify Identity error:',err); });
+  netlifyIdentity.init();
+}else{
+  // Widget script failed to load or Identity isn't enabled for this site yet.
+  $('identityWarning').style.display='block';
+}
+
+// The app is usable immediately — sign-in is optional, prompted softly after a couple of tool uses.
+initApp();
+</script></body></html>
