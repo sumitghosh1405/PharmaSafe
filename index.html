@@ -5,6 +5,7 @@
 <!-- PWA: installable on Android + iOS home screens -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f1615">
+<meta name="color-scheme" content="light dark">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -17,27 +18,29 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 :root{
+  color-scheme:light;
   --ink:#12181b; --ink-soft:#3a4441;
   --paper:#f3f4ef; --panel:#ffffff; --panel-2:#eef0ea;
   --line:#dde1d8; --line-strong:#c7cdc0;
   --muted:#5e6b64;
-  --accent:#155e63; --accent-dark:#0e3b3e; --accent-soft:#dfeceb;
-  --signal:#b3261e; --signal-soft:#f7e6e4;
-  --ok:#2f6e4f; --ok-soft:#e4efe7;
-  --warn:#9c6b14; --warn-soft:#f4ecdc;
+  --accent:#0d9488; --accent-dark:#0a6d63; --accent-soft:#d7f5f0;
+  --signal:#e11d48; --signal-soft:#fce4e9;
+  --ok:#059669; --ok-soft:#d9f5ea;
+  --warn:#d97706; --warn-soft:#fdecd2;
   --radius:14px; --radius-sm:9px;
   --serif:'Fraunces',Georgia,serif;
   --sans:'IBM Plex Sans',system-ui,Arial,sans-serif;
   --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
 }
 :root[data-theme="dark"]{
+  color-scheme:dark;
   --ink:#eef2ef; --ink-soft:#c3cdc7;
   --paper:#0f1615; --panel:#161f1e; --panel-2:#1c2725;
   --line:#26332f; --line-strong:#37473f;
   --muted:#8ea39d;
-  --accent:#3fb3a7; --accent-dark:#7fd4c9; --accent-soft:#173330;
-  --signal:#ef6a5f; --signal-soft:#3a1f1c;
-  --ok:#7fd4a0; --ok-soft:#173028;
+  --accent:#2dd4bf; --accent-dark:#5eead4; --accent-soft:#134e4a;
+  --signal:#fb7185; --signal-soft:#3a1f1c;
+  --ok:#34d399; --ok-soft:#173028;
   --warn:#e0b256; --warn-soft:#332612;
 }
 *{box-sizing:border-box}
@@ -53,13 +56,14 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);-
 .brandblock .tag{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#7d928c;margin-top:7px;font-family:var(--mono)}
 nav.side{padding:16px 12px;display:flex;flex-direction:column;gap:2px;flex:1}
 nav.side button{all:unset;cursor:pointer;padding:11px 13px;border-radius:9px;font-size:13.5px;font-weight:500;color:#c7d3d0;display:flex;align-items:center;gap:11px;letter-spacing:.01em;transition:background .15s,color .15s,transform .1s;border-left:2.5px solid transparent}
-nav.side button .n{font-family:var(--mono);font-size:11px;color:#68807b;width:18px;transition:color .15s}
+nav.side button .n{width:18px;height:18px;flex:none;display:flex;align-items:center;justify-content:center;color:#68807b;transition:color .15s}
+nav.side button .n svg{width:16px;height:16px}
 nav.side button:hover{background:#ffffff0c;color:#fff}
-nav.side button.active{background:linear-gradient(90deg,#155e63,#134f53);color:#fff;border-left-color:#7fd4c9}
+nav.side button.active{background:linear-gradient(90deg,#0d9488,#0a6d63);color:#fff;border-left-color:#5eead4;box-shadow:0 0 16px rgba(45,212,191,.25)}
 nav.side button.active .n{color:#bfe9e2}
 .sidefoot{padding:18px 22px 24px;font-size:10.5px;color:#68807b;border-top:1px solid #ffffff14;font-family:var(--mono);line-height:1.7}
 
-.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--paper)}
 .topbar{position:sticky;top:0;z-index:4;background:color-mix(in srgb,var(--paper) 90%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:17px 32px;display:flex;justify-content:space-between;align-items:center;gap:14px}
 .topbar h1{font-family:var(--serif);font-size:22px;font-weight:600;margin:0;letter-spacing:-.01em}
 .topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -80,35 +84,70 @@ nav.side button.active .n{color:#bfe9e2}
 .loadbar.active{animation:load 1.1s ease-in-out infinite}
 @keyframes load{0%{width:10%;margin-left:0}50%{width:60%;margin-left:20%}100%{width:10%;margin-left:90%}}
 
-.content{max-width:980px;width:100%;margin:0 auto;padding:30px 32px 70px;flex:1}
+.content{max-width:980px;width:100%;margin:0 auto;padding:30px 32px 70px;flex:1;background:var(--paper)}
 section{display:none;animation:rise .35s ease}
 section.active{display:block}
 @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* ---------- typographic scale ---------- */
-h2{font-family:var(--serif);font-size:26px;font-weight:600;margin:0 0 4px}
-.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin:0 0 8px}
-.lede{color:var(--muted);font-size:14.5px;line-height:1.6;max-width:62ch;margin:0 0 22px}
+h2{font-family:var(--serif);font-size:26px;font-weight:600;margin:0 0 4px;animation:rise .4s ease .05s both}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin:0 0 8px;display:flex;align-items:center;gap:7px;animation:rise .4s ease both}
+.eyebrow svg{width:15px;height:15px;flex:none}
+.lede{color:var(--muted);font-size:14.5px;line-height:1.6;max-width:62ch;margin:0 0 22px;animation:rise .4s ease .1s both}
+section.active .card{animation:rise .4s ease .16s both}
 
 /* ---------- hero ---------- */
-.hero{padding:40px 36px;border-radius:18px;background:linear-gradient(155deg,#0f1615 0%,#122120 100%);color:#eef1ef;position:relative;overflow:hidden;box-shadow:0 8px 28px rgba(15,22,20,.18)}
-.hero::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 88% 8%,#1f7d7555,transparent 55%);pointer-events:none}
+.hero{padding:40px 36px;border-radius:18px;background:linear-gradient(155deg,#0f1615 0%,#122120 100%);color:#eef1ef;position:relative;overflow:hidden;box-shadow:0 12px 34px rgba(15,22,20,.22)}
+.hero::after{content:"";position:absolute;inset:0;background:
+  radial-gradient(circle at 88% 4%,#1f7d7566,transparent 50%),
+  radial-gradient(circle at 8% 92%,#2f9d8f3d,transparent 45%),
+  radial-gradient(circle at 60% 110%,#7fd4c920,transparent 40%);
+  pointer-events:none}
 .hero::before{content:"";position:absolute;inset:0;background-image:linear-gradient(#ffffff08 1px,transparent 1px),linear-gradient(90deg,#ffffff08 1px,transparent 1px);background-size:26px 26px;mask-image:linear-gradient(180deg,#000 0%,transparent 75%);pointer-events:none}
 .hero .eyebrow{color:#7fd4c9}
-.hero h1{font-family:var(--serif);font-size:35px;line-height:1.16;margin:0 0 13px;font-weight:600;max-width:20ch;position:relative;letter-spacing:-.01em}
+.hero h1{font-family:var(--serif);font-size:36px;line-height:1.15;margin:0 0 13px;font-weight:600;max-width:20ch;position:relative;letter-spacing:-.015em}
 .hero p{max-width:56ch;color:#c3cdc9;line-height:1.65;font-size:14.5px;position:relative}
-.hero .btn{margin-top:20px;position:relative;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.hero .btn{margin-top:20px;position:relative;box-shadow:0 4px 14px rgba(0,0,0,.22);transition:transform .15s,box-shadow .15s,background .15s}
+.hero .btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.28)}
 
 .statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin:22px 0;box-shadow:0 1px 3px rgba(15,22,20,.06)}
-.statgrid .cell{background:var(--panel);padding:19px 20px;transition:background .2s}
-.statgrid .cell:hover{background:var(--panel-2)}
-.statgrid .num{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--ink);letter-spacing:-.01em}
+.statgrid .cell{background:var(--panel);padding:19px 20px;transition:background .2s,transform .15s}
+.statgrid .cell:hover{background:var(--panel-2);transform:translateY(-1px)}
+.statgrid .num{font-family:var(--mono);font-size:25px;font-weight:600;letter-spacing:-.01em;background:linear-gradient(135deg,var(--ink) 40%,var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
 .statgrid .lbl{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.4}
 
-.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:24px;margin:16px 0;box-shadow:0 1px 2px rgba(15,22,20,.04);transition:background .25s,border-color .25s,box-shadow .2s}
+.card{position:relative;overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:24px;margin:16px 0;box-shadow:0 1px 2px rgba(15,22,20,.04);transition:background .25s,border-color .25s,box-shadow .25s,transform .2s}
+.card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),#3fb3a7,var(--accent-dark));opacity:.85}
+:root[data-theme="dark"] .card::before{box-shadow:0 0 12px 1px var(--accent);filter:brightness(1.15)}
+.card:hover{box-shadow:0 6px 20px rgba(15,22,20,.08);transform:translateY(-1px)}
+#drug .card::before{background:linear-gradient(90deg,#0891b2,#06b6d4)}
+#compare .card::before{background:linear-gradient(90deg,#7c3aed,#a78bfa)}
+#signal .card::before{background:linear-gradient(90deg,#db2777,#f472b6)}
+#outcomes .card::before{background:linear-gradient(90deg,#d97706,#fbbf24)}
+#trend .card::before{background:linear-gradient(90deg,#2563eb,#60a5fa)}
+#case .card::before{background:linear-gradient(90deg,#059669,#34d399)}
+#leaderboard .card::before{background:linear-gradient(90deg,#dc2626,#f87171)}
+#recent .card::before{background:linear-gradient(90deg,#65a30d,#a3e635)}
+#drug .eyebrow{color:#0891b2}
+#compare .eyebrow{color:#7c3aed}
+#signal .eyebrow{color:#db2777}
+#outcomes .eyebrow{color:#d97706}
+#trend .eyebrow{color:#2563eb}
+#case .eyebrow{color:#059669}
+#leaderboard .eyebrow{color:#dc2626}
+#recent .eyebrow{color:#65a30d}
 .card h3{font-family:var(--serif);font-weight:600;font-size:19px;margin:0 0 12px}
 .card h4{font-size:12.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:20px 0 10px;font-weight:600}
 .card h4:first-child{margin-top:0}
+.card h4::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:8px;vertical-align:middle}
+#drug .card h4::before{background:#0891b2}
+#compare .card h4::before{background:#7c3aed}
+#signal .card h4::before{background:#db2777}
+#outcomes .card h4::before{background:#d97706}
+#trend .card h4::before{background:#2563eb}
+#case .card h4::before{background:#059669}
+#leaderboard .card h4::before{background:#dc2626}
+#recent .card h4::before{background:#65a30d}
 .note{color:var(--muted);font-size:13px;line-height:1.65}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .row3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
@@ -123,7 +162,7 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(
 #authModal.show{opacity:1}
 .authbox{position:relative;width:100%;max-width:400px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:34px 32px;box-shadow:0 20px 60px rgba(15,22,20,.28);transform:translateY(14px) scale(.97);transition:transform .22s ease}
 #authModal.show .authbox{transform:translateY(0) scale(1)}
-.modalclose{all:unset;position:absolute;top:14px;right:16px;font-size:15px;color:var(--muted);cursor:pointer;padding:4px 8px;border-radius:6px;line-height:1}
+.modalclose{all:unset;position:absolute;top:14px;right:16px;color:var(--muted);cursor:pointer;padding:7px;border-radius:8px;line-height:1;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s}
 .modalclose:hover{background:var(--panel-2);color:var(--ink)}
 .skiplink{all:unset;display:block;text-align:center;margin-top:16px;font-size:12.5px;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .skiplink:hover{color:var(--ink)}
@@ -143,8 +182,9 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(
 .userpill:hover{background:var(--panel-2)}
 .loginlink{all:unset;padding:7px 14px;border-radius:99px;border:1px solid var(--line-strong);font-size:12px;font-weight:600;color:var(--accent-dark);cursor:pointer;transition:background .15s}
 .loginlink:hover{background:var(--accent-soft)}
-.btn{border:0;border-radius:var(--radius-sm);padding:12px 19px;background:var(--accent);color:#fff;font-weight:600;font-size:14px;cursor:pointer;font-family:var(--sans);transition:background .15s,transform .1s,box-shadow .15s;box-shadow:0 1px 2px rgba(15,22,20,.08)}
-.btn:hover{background:var(--accent-dark);box-shadow:0 2px 6px rgba(15,22,20,.14)}
+.btn{border:0;border-radius:var(--radius-sm);padding:12px 19px;background:var(--accent);color:#fff;font-weight:600;font-size:14px;cursor:pointer;font-family:var(--sans);transition:background .15s,transform .1s,box-shadow .15s;box-shadow:0 1px 2px rgba(15,22,20,.08),0 0 0 rgba(13,148,136,0)}
+.btn:hover{background:var(--accent-dark)}
+.btn:not(.gray):not(.ghost):hover{box-shadow:0 4px 14px rgba(13,148,136,.35),0 0 20px rgba(13,148,136,.25)}
 .btn:active{transform:scale(.97)}
 .btn:disabled{opacity:.55;cursor:wait}
 .btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
@@ -194,7 +234,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
 .installbar{display:none;align-items:center;gap:12px;background:var(--accent);color:#fff;padding:12px 18px;font-size:13px;position:sticky;top:0;z-index:6}
 .installbar.show{display:flex}
 .installbar button{all:unset;cursor:pointer;background:#ffffff2a;padding:7px 13px;border-radius:8px;font-weight:600;font-size:12.5px}
-.installbar .x{margin-left:auto;background:transparent;padding:4px 8px;opacity:.8}
+.installbar .x{margin-left:auto;background:transparent;padding:6px;opacity:.85;display:flex;align-items:center;justify-content:center}
 
 /* ---------- responsive ---------- */
 @media(max-width:900px){
@@ -213,7 +253,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
 
 <div id="authModal">
   <div class="authbox">
-    <button class="modalclose" onclick="hideAuthPrompt()" aria-label="Close">✕</button>
+    <button class="modalclose" onclick="hideAuthPrompt()" aria-label="Close"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     <div class="authbrand">Pharma<em>Safe</em></div>
     <div class="authsub" id="authModalSub">FAERS / AEMS Analytics — academic prototype</div>
     <div class="authtabs">
@@ -251,11 +291,11 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
 <div class="installbar" id="androidInstall">
   <span>Install PharmaSafe as an app on this device</span>
   <button onclick="doInstall()">Install</button>
-  <button class="x" onclick="dismissInstall('androidInstall')">✕</button>
+  <button class="x" onclick="dismissInstall('androidInstall')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
 </div>
 <div class="installbar" id="iosInstall">
   <span>To install: tap <b>Share</b> → <b>Add to Home Screen</b></span>
-  <button class="x" onclick="dismissInstall('iosInstall')">✕</button>
+  <button class="x" onclick="dismissInstall('iosInstall')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
 </div>
 <div class="loadbar" id="loadbar"></div>
 <div class="shell">
@@ -265,15 +305,15 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       <div class="tag">FAERS / AEMS Analytics</div>
     </div>
     <nav class="side">
-      <button data-t="home" onclick="go('home')"><span class="n">01</span>Overview</button>
-      <button data-t="drug" onclick="go('drug')"><span class="n">02</span>Drug analysis</button>
-      <button data-t="compare" onclick="go('compare')"><span class="n">03</span>Compare drugs</button>
-      <button data-t="signal" onclick="go('signal')"><span class="n">04</span>Signal detection</button>
-      <button data-t="outcomes" onclick="go('outcomes')"><span class="n">05</span>Outcome severity</button>
-      <button data-t="trend" onclick="go('trend')"><span class="n">06</span>Trend</button>
-      <button data-t="case" onclick="go('case')"><span class="n">07</span>Report viewer</button>
-      <button data-t="leaderboard" onclick="go('leaderboard')"><span class="n">08</span>Leaderboard</button>
-      <button data-t="recent" onclick="go('recent')"><span class="n">09</span>Recent reports</button>
+      <button data-t="home" onclick="go('home')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>Overview</button>
+      <button data-t="drug" onclick="go('drug')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="4"/><line x1="12" y1="8" x2="12" y2="16"/></svg></span>Drug analysis</button>
+      <button data-t="compare" onclick="go('compare')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6.5"/><circle cx="15" cy="12" r="6.5"/></svg></span>Compare drugs</button>
+      <button data-t="signal" onclick="go('signal')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,12 8,12 10,6 14,18 16,12 21,12"/></svg></span>Signal detection</button>
+      <button data-t="outcomes" onclick="go('outcomes')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L21 19 L3 19 Z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="16.7" r="0.6" fill="currentColor" stroke="none"/></svg></span>Outcome severity</button>
+      <button data-t="trend" onclick="go('trend')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,17 9,11 13,15 21,5"/><polyline points="15,5 21,5 21,11"/></svg></span>Trend</button>
+      <button data-t="case" onclick="go('case')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 H16 L20 6 V22 H6 Z"/><line x1="9" y1="12" x2="17" y2="12"/><line x1="9" y1="16" x2="17" y2="16"/></svg></span>Report viewer</button>
+      <button data-t="leaderboard" onclick="go('leaderboard')"><span class="n"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="15" width="4" height="6" rx="1"/></svg></span>Leaderboard</button>
+      <button data-t="recent" onclick="go('recent')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 16,14"/></svg></span>Recent reports</button>
     </nav>
     <div class="sidefoot">Source: FDA AEMS/FAERS<br>via openFDA · live queries<br>Not for clinical decisions</div>
   </aside>
@@ -292,8 +332,8 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
         <button class="btn ghost" id="refreshNowBtn" onclick="refreshNow()" style="padding:7px 12px;font-size:12px">Refresh now</button>
         <span class="pill" id="statusPill"><span class="dot"></span><span id="statusTxt">Checking connection…</span></span>
         <button class="loginlink" id="loginLink" onclick="showAuthPrompt()">Log in / Sign up</button>
-        <span class="userpill" id="userPill" onclick="handleLogout()" title="Click to log out" style="display:none">👤 <span id="userPillName">—</span> · Log out</span>
-        <button class="themebtn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme">☾</button>
+        <span class="userpill" id="userPill" onclick="handleLogout()" title="Click to log out" style="display:none"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> <span id="userPillName">—</span> · Log out</span>
+        <button class="themebtn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
       </div>
     </div>
     <div class="autonote" id="autonote">Live mode: this page fetches fresh data on its own — Overview, Recent Reports, and Leaderboard load automatically, and any section you run stays in sync in the background. openFDA's underlying FAERS dataset is refreshed by FDA quarterly, so auto-refresh keeps you current with whatever's in openFDA right now rather than inventing new reports between releases.</div>
@@ -302,9 +342,9 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
 
       <section id="home" class="active">
         <div class="hero">
-          <p class="eyebrow">Research prototype</p>
+          <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6L4 20a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3L15 8V2"/><line x1="8" y1="2" x2="16" y2="2"/><line x1="8.5" y1="14" x2="15.5" y2="14"/></svg>Research prototype</p>
           <h1>Statistical screening for real-world adverse event signals</h1>
-          <p>Queries FDA AEMS/FAERS adverse-event data live through openFDA — no fabricated cases, no cached demo data. Nine tools for disproportionality screening, comparison, and case-level review.</p>
+          <p>Nine tools for disproportionality screening, drug comparison, and case-level review — built directly on FDA's public AEMS/FAERS adverse-event index.</p>
           <button class="btn" onclick="go('drug')" style="background:#fff;color:#0e3b3e">Analyze a drug →</button>
         </div>
 
@@ -322,7 +362,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       </section>
 
       <section id="drug">
-        <p class="eyebrow">02 · Drug analysis</p>
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="4"/><line x1="12" y1="8" x2="12" y2="16"/></svg>02 · Drug analysis</p>
         <h2>Reaction profile by drug</h2>
         <p class="lede">Pulls every reaction term reported against a medicinal product, ranked by report volume, plus a live sex breakdown of the patients who experienced them.</p>
         <div class="card">
@@ -334,7 +374,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       </section>
 
       <section id="compare">
-        <p class="eyebrow">03 · Compare drugs</p>
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6.5"/><circle cx="15" cy="12" r="6.5"/></svg>03 · Compare drugs</p>
         <h2>Side-by-side comparison</h2>
         <p class="lede">Compares total report volume and top reaction terms for two drugs, so relative risk profiles are visible at a glance.</p>
         <div class="card">
@@ -348,7 +388,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       </section>
 
       <section id="signal">
-        <p class="eyebrow">04 · Signal detection</p>
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,12 8,12 10,6 14,18 16,12 21,12"/></svg>04 · Signal detection</p>
         <h2>Disproportionality screen</h2>
         <p class="lede">Builds the 2×2 contingency table for a drug–reaction pair across the full FAERS index and computes ROR and PRR with 95% confidence intervals.</p>
         <div class="card">
@@ -362,9 +402,9 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       </section>
 
       <section id="outcomes">
-        <p class="eyebrow">05 · Outcome severity</p>
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L21 19 L3 19 Z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="16.7" r="0.6" fill="currentColor" stroke="none"/></svg>05 · Outcome severity</p>
         <h2>Serious outcome breakdown</h2>
-        <p class="lede">Of the reports naming this drug, what share were coded as death, hospitalization, disability, life-threatening, or other serious outcomes.</p>
+        <p class="lede">Shows what share of reports naming this drug were coded as death, hospitalization, disability, life-threatening, or another serious outcome.</p>
         <div class="card">
           <label>Drug</label>
           <input id="outDrug" placeholder="e.g. atorvastatin" onkeydown="if(event.key==='Enter')outcomes()">
@@ -374,7 +414,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       </section>
 
       <section id="trend">
-        <p class="eyebrow">06 · Trend</p>
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,17 9,11 13,15 21,5"/><polyline points="15,5 21,5 21,11"/></svg>06 · Trend</p>
         <h2>Report volume over time</h2>
         <p class="lede">Report counts by receive date — useful for spotting reporting spikes after label changes, media coverage, or REMS updates.</p>
         <div class="card">
@@ -387,7 +427,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       </section>
 
       <section id="case">
-        <p class="eyebrow">07 · Report viewer</p>
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 H16 L20 6 V22 H6 Z"/><line x1="9" y1="12" x2="17" y2="12"/><line x1="9" y1="16" x2="17" y2="16"/></svg>07 · Report viewer</p>
         <h2>Individual case safety report</h2>
         <p class="lede">Look up one public FAERS report by its safety report ID and see exactly what was submitted.</p>
         <div class="card">
@@ -399,7 +439,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       </section>
 
       <section id="leaderboard">
-        <p class="eyebrow">08 · Leaderboard</p>
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="15" width="4" height="6" rx="1"/></svg>08 · Leaderboard</p>
         <h2>Most reported drugs &amp; reactions</h2>
         <p class="lede">The highest-volume medicinal products and reaction terms across the entire public FAERS index — a snapshot of what's being reported most right now.</p>
         <div class="card">
@@ -409,7 +449,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       </section>
 
       <section id="recent">
-        <p class="eyebrow">09 · Recent reports</p>
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 16,14"/></svg>09 · Recent reports</p>
         <h2>Latest public submissions</h2>
         <p class="lede">The 20 most recently received reports in the openFDA index.</p>
         <div class="card">
@@ -419,13 +459,20 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       </section>
 
     </div>
-    <footer>PharmaSafe academic prototype · Data: FDA AEMS/FAERS via openFDA, queried live · Not for clinical decision-making</footer>
+    <footer>Built for coursework and demonstration. Always confirm findings against a pharmacist, clinician, or the FDA label before acting on them.</footer>
   </div>
 </div>
 </div>
 
 <script>
 const $=x=>document.getElementById(x);
+const ICONS={
+  moon:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+  sun:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>',
+  close:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  user:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  download:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>'
+};
 const BASE="https://api.fda.gov/drug/event.json";
 const LABEL_BASE="https://api.fda.gov/drug/label.json";
 
@@ -469,8 +516,8 @@ function rq(rx){return 'patient.reaction.reactionmeddrapt:'+q(rx)}
 function toggleTheme(){
   const cur=document.documentElement.getAttribute('data-theme');
   const next=cur==='dark'?'light':'dark';
-  if(next==='dark'){document.documentElement.setAttribute('data-theme','dark');$('themeBtn').textContent='☀';}
-  else{document.documentElement.removeAttribute('data-theme');$('themeBtn').textContent='☾';}
+  if(next==='dark'){document.documentElement.setAttribute('data-theme','dark');$('themeBtn').innerHTML=ICONS.sun;}
+  else{document.documentElement.removeAttribute('data-theme');$('themeBtn').innerHTML=ICONS.moon;}
 }
 
 /* ---------- loading bar ---------- */
@@ -543,6 +590,12 @@ function flashUpdated(id){const el=$(id);if(!el)return;el.classList.remove('flas
 function skeleton(rows){
   return `<div style="margin-top:10px">${Array.from({length:rows||4}).map((_,i)=>`<div class="skel skel-line" style="width:${85-i*7}%"></div>`).join('')}</div>`;
 }
+// Native alert() is silently blocked in some mobile/PWA/embedded-webview contexts,
+// which makes a validation message look like the button did nothing at all.
+// This renders the same message directly in the page instead, so it always shows.
+function needInput(outId,msg){
+  $(outId).innerHTML=`<p class="note" style="margin-top:10px;color:var(--signal)">${esc(msg)}</p>`;
+}
 function networkErrorHTML(errs){
   return `<div class="card" style="border-color:#b3261e55;background:var(--signal-soft)">
     <h3 style="color:var(--signal)">Can't reach openFDA from this preview</h3>
@@ -568,7 +621,7 @@ function countUp(el,target){
   }
   requestAnimationFrame(step);
 }
-const PAL=['#155e63','#9c6b14','#2f6e4f','#b3261e','#5e6b64','#3fb3a7','#c78a2e'];
+const PAL=['#0891b2','#7c3aed','#db2777','#d97706','#059669','#2563eb','#dc2626','#65a30d'];
 
 /* ---------- auto-refresh engine ---------- */
 const state={
@@ -647,7 +700,7 @@ async function fetchSexDistribution(searchQuery){
 async function drugSearch(silent){
   await withBtn('drugBtn',async()=>{
     const n=silent?state.drug.name:$('drugName').value.trim();
-    if(!n)return alert('Enter a drug');
+    if(!n)return needInput('drugOut','Enter a drug name to analyze.');
     if(!silent)$('drugOut').innerHTML=skeleton(5);
     try{
       const [reports,x,sexX]=await Promise.all([
@@ -657,7 +710,7 @@ async function drugSearch(silent){
       ]);
       const rx=(x.results||[]).map(a=>({term:a.term,count:a.count})).sort((a,b)=>b.count-a.count).slice(0,30);
       const top10=rx.slice(0,10);
-      const rows=rx.map(r=>`<tr><td>${esc(r.term)}</td><td>${r.count.toLocaleString()}</td><td><button class="btn gray" style="padding:6px 11px;font-size:11.5px" onclick="useSignal('${esc(n).replace(/'/g,"\\'")}','${esc(r.term).replace(/'/g,"\\'")}')">Screen this pair</button></td></tr>`).join('');
+      const rows=rx.map(r=>`<tr><td>${esc(r.term)}</td><td>${r.count.toLocaleString()}</td><td><button class="btn gray" style="padding:6px 11px;font-size:11.5px" onclick="useSignal(${esc(JSON.stringify(n))},${esc(JSON.stringify(r.term))})">Screen this pair</button></td></tr>`).join('');
       const sexCounts={Male:0,Female:0,Unknown:0};
       (sexX.results||[]).forEach(s=>{const label=fmtSex(s.term);sexCounts[label]=(sexCounts[label]||0)+s.count;});
       const sexData=['Male','Female','Unknown'].map(label=>({label,count:sexCounts[label]}));
@@ -673,15 +726,15 @@ async function drugSearch(silent){
         <table><tr><th>Reaction term</th><th>Reports</th><th></th></tr>${rows||'<tr><td colspan=3>No reaction data found.</td></tr>'}</table>
         <p class="note">Reaction counts are report counts returned by openFDA — not incidence rates, and not adjusted for exposure.</p>
         <div class="actions">
-          <button class="btn ghost" onclick='exportDrugCSV(${JSON.stringify(n)},${JSON.stringify(rx)})'>Export CSV</button>
-          <button class="btn ghost" onclick="go('outcomes');$('outDrug').value=${JSON.stringify(n)};outcomes()">Outcome severity →</button>
+          <button class="btn ghost" onclick='exportDrugCSV(${esc(JSON.stringify(n))},${esc(JSON.stringify(rx))})'>Export CSV</button>
+          <button class="btn ghost" onclick="go('outcomes');$('outDrug').value=${esc(JSON.stringify(n))};outcomes()">Outcome severity →</button>
         </div>`;
 
       if(reactionChart)reactionChart.destroy();
       reactionChart=new Chart($('reactChart'),{type:'bar',data:{labels:top10.map(r=>r.term),datasets:[{data:top10.map(r=>r.count),backgroundColor:PAL[0],borderRadius:4}]},
         options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
       if(sexChart)sexChart.destroy();
-      sexChart=new Chart($('sexChart'),{type:'bar',data:{labels:sexData.map(s=>s.label),datasets:[{data:sexData.map(s=>s.count),backgroundColor:[PAL[0],PAL[1],PAL[4]],borderRadius:4}]},
+      sexChart=new Chart($('sexChart'),{type:'bar',data:{labels:sexData.map(s=>s.label),datasets:[{data:sexData.map(s=>s.count),backgroundColor:['#2563eb','#db2777','#94a3b8'],borderRadius:4}]},
         options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw.toLocaleString()} reports`}}},scales:{x:{beginAtZero:true,grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false},ticks:{autoSkip:false}}}}});
       state.drug={loaded:true,name:n};
       if(silent)flashUpdated('drugOut');
@@ -699,7 +752,7 @@ let cmpChartA,cmpChartB,cmpTotalsChart;
 async function compareDrugs(silent){
   await withBtn('cmpBtn',async()=>{
     const a=silent?state.compare.a:$('cmpA').value.trim(), b=silent?state.compare.b:$('cmpB').value.trim();
-    if(!a||!b)return alert('Enter both drugs');
+    if(!a||!b)return needInput('cmpOut','Enter both drug names to compare.');
     if(!silent)$('cmpOut').innerHTML=skeleton(5);
     try{
       const [totA,totB,xA,xB]=await Promise.all([
@@ -739,7 +792,7 @@ let outChart;
 async function outcomes(silent){
   await withBtn('outBtn',async()=>{
     const n=silent?state.outcomes.name:$('outDrug').value.trim();
-    if(!n)return alert('Enter a drug');
+    if(!n)return needInput('outOut','Enter a drug name to analyze.');
     if(!silent)$('outOut').innerHTML=skeleton(5);
     try{
       const fields=[['seriousnessdeath','Death'],['seriousnesshospitalization','Hospitalization'],['seriousnesslifethreatening','Life-threatening'],['seriousnessdisabling','Disabling'],['seriousnessother','Other serious']];
@@ -754,7 +807,7 @@ async function outcomes(silent){
         </table>
         <p class="note" style="margin-top:14px">Outcome flags are self-reported and not mutually exclusive — one report can carry several serious-outcome flags at once, so percentages don't sum to 100%.</p>`;
       if(outChart)outChart.destroy();
-      outChart=new Chart($('outChart'),{type:'bar',data:{labels:data.map(d=>d.label),datasets:[{data:data.map(d=>d.count),backgroundColor:[PAL[3],PAL[1],PAL[3],PAL[5],PAL[4]],borderRadius:4}]},
+      outChart=new Chart($('outChart'),{type:'bar',data:{labels:data.map(d=>d.label),datasets:[{data:data.map(d=>d.count),backgroundColor:[PAL[6],PAL[3],PAL[1],PAL[5],PAL[7]],borderRadius:4}]},
         options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
       state.outcomes={loaded:true,name:n};
       if(silent)flashUpdated('outOut');
@@ -786,7 +839,7 @@ function forestPlotSVG(r,lo,hi,flag){
 async function signal(silent){
   await withBtn('sigBtn',async()=>{
     const drug=silent?state.signal.drug:$('sigDrug').value.trim(), rx=silent?state.signal.rx:$('sigRx').value.trim();
-    if(!drug||!rx)return alert('Enter both');
+    if(!drug||!rx)return needInput('sigOut','Enter both a drug and a reaction term.');
     if(!silent)$('sigOut').innerHTML=skeleton(4);
     try{
       const [alln,dn,rn,a]=await Promise.all([total(),total(dq(drug)),total(rq(rx)),total(dq(drug)+' AND '+rq(rx))]);
@@ -811,7 +864,7 @@ async function signal(silent){
           <span class="chip">PRR&nbsp;<b>${p.toFixed(2)}</b></span>
         </div>
         <p class="note" style="margin-top:14px"><b>Research screen:</b> a ≥ 3, ROR &gt; 2 and lower 95% CI &gt; 1. This is a project-defined screening rule, not an FDA regulatory threshold. A disproportionality signal is not proof of causality.</p>
-        <button class="btn gray" id="labelBtn" onclick="label('${esc(drug).replace(/'/g,"\\'")}')">Check FDA label evidence</button>
+        <button class="btn gray" id="labelBtn" onclick="label(${esc(JSON.stringify(drug))})">Check FDA label evidence</button>
         <div id="labelOut"></div>
       </div>`;
       state.signal={loaded:true,drug,rx};
@@ -868,7 +921,7 @@ async function label(d){
 async function caseView(){
   await withBtn('caseBtn',async()=>{
     const id=$('caseId').value.trim();
-    if(!id)return alert('Enter a report ID');
+    if(!id)return needInput('caseOut','Enter a report ID.');
     $('caseOut').innerHTML=skeleton(4);
     try{
       const x=await fda({search:'safetyreportid:'+q(id),limit:1});
@@ -902,7 +955,7 @@ let chart;
 async function trend(silent){
   await withBtn('trendBtn',async()=>{
     const n=silent?state.trend.name:$('trendDrug').value.trim();
-    if(!n)return alert('Enter a drug');
+    if(!n)return needInput('trendMsg','Enter a drug name to load its trend.');
     if(!silent)$('trendMsg').innerHTML=skeleton(1);
     try{
       const x=await fda({search:dq(n),count:'receivedate'});
@@ -928,7 +981,7 @@ async function trend(silent){
     }catch(e){
       if(silent){console.warn('auto-refresh (trend) failed:',e.message);return;}
       if(e.isNetworkBlock){$('trendMsg').innerHTML=errHTML(e);}
-      else{$('trendMsg').innerHTML='';alert(e.message);}
+      else{$('trendMsg').innerHTML=`<p class="note" style="color:var(--signal)">${esc(e.message)}</p>`;}
     }
   },silent);
 }
@@ -978,7 +1031,7 @@ async function recent(silent){
         return `<tr><td>${esc(r.id)}</td><td>${receivedFmt}</td><td>${fmtAge(r.age,r.ageUnit)}</td><td>${fmtSex(r.sex)}</td><td>${esc(r.drugs.join(', '))||'—'}</td><td>${esc(r.reactions.join(', '))||'—'}</td></tr>`;
       }).join('');
       $('recentOut').innerHTML=`<table><tr><th>ID</th><th>Received</th><th>Age</th><th>Sex</th><th>Drugs</th><th>Reactions</th></tr>${rows||'<tr><td colspan=6>No data.</td></tr>'}</table>
-        <div class="actions"><button class="btn ghost" onclick='exportRecentCSV(${JSON.stringify(out)})'>Export CSV</button></div>`;
+        <div class="actions"><button class="btn ghost" onclick='exportRecentCSV(${esc(JSON.stringify(out))})'>Export CSV</button></div>`;
       state.recent.loaded=true;
       if(silent)flashUpdated('recentOut');
     }catch(e){
