@@ -232,6 +232,40 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(
 #authModal.show .authbox{transform:translateY(0) scale(1)}
 .modalclose{all:unset;position:absolute;top:14px;right:16px;color:var(--muted);cursor:pointer;padding:7px;border-radius:8px;line-height:1;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s}
 .modalclose:hover{background:var(--panel-2);color:var(--ink)}
+
+/* ---------- ROR/PRR calculation modal ---------- */
+.chip.calc{cursor:pointer;border:1.5px solid var(--accent);background:var(--accent-soft);color:var(--accent-dark);display:inline-flex;align-items:center;gap:7px;transition:transform .12s,filter .12s}
+.chip.calc:hover{filter:brightness(.96)}
+.chip.calc:active{transform:scale(.97)}
+.chip.calc .chevron{font-size:10px;opacity:.7}
+#calcModal{position:fixed;inset:0;z-index:55;background:rgba(10,15,14,.55);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .22s ease}
+#calcModal.show{opacity:1}
+@media(min-width:700px){#calcModal{align-items:center;padding:24px}}
+.calcbox{position:relative;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:20px 20px 0 0;padding:28px 26px 32px;box-shadow:0 -10px 40px rgba(15,22,20,.25);transform:translateY(100%);transition:transform .28s cubic-bezier(.22,.9,.32,1)}
+#calcModal.show .calcbox{transform:translateY(0)}
+@media(min-width:700px){.calcbox{border-radius:20px;transform:translateY(14px) scale(.97)}}
+.calcbox::before{content:"";display:block;width:36px;height:4px;border-radius:99px;background:var(--line-strong);margin:0 auto 18px}
+@media(min-width:700px){.calcbox::before{display:none}}
+.calc-eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+.calc-title{font-family:var(--serif);font-size:22px;font-weight:600;margin:0 0 18px}
+.calc-step{background:var(--panel-2);border-radius:12px;padding:14px 16px;margin-bottom:10px}
+.calc-step .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;margin-bottom:6px}
+.calc-step .expr{font-family:var(--mono);font-size:14px;color:var(--ink);line-height:1.7;word-break:break-word}
+.calc-step .expr .eq{color:var(--accent-dark);font-weight:600}
+.calc-result{display:flex;align-items:baseline;gap:10px;background:var(--accent-soft);border-radius:12px;padding:16px 18px;margin:16px 0}
+.calc-result .num{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--accent-dark)}
+.calc-result .lbl2{font-size:12.5px;color:var(--ink-soft)}
+.readpoints{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
+.readpoints li{display:flex;gap:10px;font-size:13px;line-height:1.55;color:var(--ink-soft)}
+.readpoints li .ic{flex:none;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;margin-top:1px}
+.readpoints li .ic.ok{background:var(--ok-soft);color:var(--ok)}
+.readpoints li .ic.warn{background:var(--warn-soft);color:var(--warn)}
+.readpoints li .ic.info{background:var(--accent-soft);color:var(--accent-dark)}
+.screenrule{display:flex;flex-direction:column;gap:8px;margin:14px 0}
+.screenrule .rule{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-radius:10px;background:var(--panel-2);font-size:13px}
+.screenrule .rule .cond{font-family:var(--mono);font-size:12.5px;color:var(--ink-soft)}
+.screenrule .rule .pass{color:var(--ok);font-weight:700;font-size:12px}
+.screenrule .rule .fail{color:var(--signal);font-weight:700;font-size:12px}
 .skiplink{all:unset;display:block;text-align:center;margin-top:16px;font-size:12.5px;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .skiplink:hover{color:var(--ink)}
 .authbrand{font-family:var(--serif);font-weight:600;font-size:24px;text-align:center;margin-bottom:2px}
@@ -352,6 +386,13 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
     <p class="authnote">Accounts are your own — created and stored securely, working across any device you log in on, not just this browser.</p>
     <p class="authnote" id="identityWarning" style="display:none;color:var(--signal)">⚠️ Sign-in isn't configured yet. Add your Firebase project config in the <code>FIREBASE_CONFIG</code> object near the top of the script, then reload this page.</p>
     <button class="skiplink" onclick="hideAuthPrompt()">Skip for now — keep browsing</button>
+  </div>
+</div>
+
+<div id="calcModal" onclick="if(event.target===this)closeCalcModal()">
+  <div class="calcbox" id="calcboxContent">
+    <button class="modalclose" onclick="closeCalcModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    <div id="calcModalBody"></div>
   </div>
 </div>
 
@@ -1412,6 +1453,7 @@ function forestPlotSVG(r,lo,hi,flag){
     <circle cx="${xr}" cy="${top+34}" r="6" fill="${color}"/>
   </svg>`;
 }
+let lastSignalCalc=null;
 async function signal(silent){
   await withBtn('sigBtn',async()=>{
     const drug=silent?state.signal.drug:$('sigDrug').value.trim(), rx=silent?state.signal.rx:$('sigRx').value.trim();
@@ -1439,13 +1481,15 @@ async function signal(silent){
           <tr><td>d — other drugs + other reactions</td><td>${d}</td></tr>
         </table>
         <div class="chips" style="margin-top:16px">
-          <span class="chip">ROR&nbsp;<b>${r.toFixed(2)}</b>&nbsp;(${lo.toFixed(2)}–${hi.toFixed(2)})</span>
-          <span class="chip">PRR&nbsp;<b>${p.toFixed(2)}</b></span>
+          <button class="chip calc" onclick="openCalcModal('ror')">ROR&nbsp;<b>${r.toFixed(2)}</b>&nbsp;(${lo.toFixed(2)}–${hi.toFixed(2)})<span class="chevron">▸</span></button>
+          <button class="chip calc" onclick="openCalcModal('prr')">PRR&nbsp;<b>${p.toFixed(2)}</b><span class="chevron">▸</span></button>
         </div>
-        <p class="note" style="margin-top:14px"><b>Research screen:</b> a ≥ 3, ROR &gt; 2 and lower 95% CI &gt; 1. This is a project-defined screening rule, not an FDA regulatory threshold. A disproportionality signal is not proof of causality.</p>
+        <p class="note" style="margin-top:4px;font-size:11.5px">Tap ROR or PRR above to see the exact calculation.</p>
+        <p class="note" style="margin-top:10px"><b>Research screen:</b> a ≥ 3, ROR &gt; 2 and lower 95% CI &gt; 1. This is a project-defined screening rule, not an FDA regulatory threshold. A disproportionality signal is not proof of causality.</p>
         <button class="btn gray" id="labelBtn" onclick="label(${esc(JSON.stringify(displayDrug))})">Check FDA label evidence</button>
         <div id="labelOut"></div>
       </div>`;
+      lastSignalCalc={drug:displayDrug,rx,a,b:b2,c,d,r,lo,hi,p,flag};
       state.signal={loaded:true,drug,rx};
       if(silent)flashUpdated('sigOut');
     }catch(e){
@@ -1495,6 +1539,115 @@ async function label(d){
     $('labelOut').innerHTML=matchNote+(Object.keys(sections).length?`<div style="margin-top:10px">${sectionsHtml}</div>`:'<p class="note">Label found, but none of the tracked sections (boxed warning, warnings, adverse reactions, contraindications) were present in this record.</p>');
   }catch(e){$('labelOut').innerHTML=errHTML(e);}
   finally{btn.disabled=false;btn.textContent='Check FDA label evidence';}
+}
+
+/* ---------- ROR/PRR calculation modal ---------- */
+function openCalcModal(type){
+  if(!lastSignalCalc)return;
+  const c=lastSignalCalc;
+  const A=c.a+0.5, B=c.b+0.5, C=c.c+0.5, D=c.d+0.5; // Haldane–Anscombe continuity correction
+  let html='';
+  if(type==='ror'){
+    const se=Math.sqrt(1/A+1/B+1/C+1/D);
+    html=`
+      <div class="calc-eyebrow">Reporting Odds Ratio</div>
+      <div class="calc-title">${esc(c.drug)} → ${esc(c.rx)}</div>
+
+      <div class="calc-step">
+        <div class="lbl">1 · Continuity correction</div>
+        <div class="expr">Each cell gets <b>+0.5</b> so the ratio is defined even when a count is zero (Haldane–Anscombe correction):<br>
+        a=${c.a}<span class="eq">→</span>${A} &nbsp;·&nbsp; b=${c.b}<span class="eq">→</span>${B} &nbsp;·&nbsp; c=${c.c}<span class="eq">→</span>${C} &nbsp;·&nbsp; d=${c.d}<span class="eq">→</span>${D}</div>
+      </div>
+
+      <div class="calc-step">
+        <div class="lbl">2 · Odds ratio</div>
+        <div class="expr">ROR <span class="eq">=</span> (a×d) / (b×c)<br>
+        <span class="eq">=</span> (${A} × ${D}) / (${B} × ${C})<br>
+        <span class="eq">=</span> ${(A*D).toFixed(2)} / ${(B*C).toFixed(2)}<br>
+        <span class="eq">=</span> <b>${c.r.toFixed(4)}</b></div>
+      </div>
+
+      <div class="calc-step">
+        <div class="lbl">3 · Standard error (log scale)</div>
+        <div class="expr">SE <span class="eq">=</span> √(1/a + 1/b + 1/c + 1/d)<br>
+        <span class="eq">=</span> √(${(1/A).toFixed(4)} + ${(1/B).toFixed(5)} + ${(1/C).toFixed(5)} + ${(1/D).toFixed(7)})<br>
+        <span class="eq">=</span> <b>${se.toFixed(4)}</b></div>
+      </div>
+
+      <div class="calc-step">
+        <div class="lbl">4 · 95% confidence interval</div>
+        <div class="expr">Lower <span class="eq">=</span> exp(ln(${c.r.toFixed(2)}) − 1.96×${se.toFixed(3)}) <span class="eq">=</span> <b>${c.lo.toFixed(4)}</b><br>
+        Upper <span class="eq">=</span> exp(ln(${c.r.toFixed(2)}) + 1.96×${se.toFixed(3)}) <span class="eq">=</span> <b>${c.hi.toFixed(4)}</b></div>
+      </div>
+
+      <div class="calc-result">
+        <div class="num">${c.r.toFixed(2)}</div>
+        <div class="lbl2">ROR, 95% CI ${c.lo.toFixed(2)}–${c.hi.toFixed(2)}</div>
+      </div>
+
+      <ul class="readpoints">
+        <li><span class="ic info">i</span><span><b>What it means:</b> reports pairing ${esc(c.drug)} with ${esc(c.rx)} are ${c.r>=1?`${c.r.toFixed(1)}× more`:`${(1/c.r).toFixed(1)}× less`} common, relative to how often that reaction shows up with every other drug in FAERS.</span></li>
+        <li><span class="ic ${c.lo>1?'warn':'ok'}">${c.lo>1?'!':'✓'}</span><span><b>CI crosses 1?</b> ${c.lo>1?'No — the entire interval sits above 1, so chance alone is a less likely explanation.':'Yes — the interval includes 1, so this could plausibly be no real association at all.'}</span></li>
+        <li><span class="ic ${c.a>=3?'ok':'warn'}">${c.a>=3?'✓':'!'}</span><span><b>Report volume (a=${c.a}):</b> ${c.a>=3?'meets the minimum count this screen requires to be interpretable.':'below the minimum of 3 — with this few reports, the ratio can swing wildly and should not be trusted numerically, even though it is shown above.'}</span></li>
+      </ul>`;
+  }else{
+    html=`
+      <div class="calc-eyebrow">Proportional Reporting Ratio</div>
+      <div class="calc-title">${esc(c.drug)} → ${esc(c.rx)}</div>
+
+      <div class="calc-step">
+        <div class="lbl">1 · Continuity correction</div>
+        <div class="expr">Same +0.5 correction as ROR, applied to every cell:<br>
+        a=${c.a}<span class="eq">→</span>${A} &nbsp;·&nbsp; b=${c.b}<span class="eq">→</span>${B} &nbsp;·&nbsp; c=${c.c}<span class="eq">→</span>${C} &nbsp;·&nbsp; d=${c.d}<span class="eq">→</span>${D}</div>
+      </div>
+
+      <div class="calc-step">
+        <div class="lbl">2 · Proportion within this drug</div>
+        <div class="expr">a / (a+b) <span class="eq">=</span> ${A} / (${A}+${B}) <span class="eq">=</span> ${A} / ${(A+B).toFixed(1)} <span class="eq">=</span> <b>${(A/(A+B)).toFixed(5)}</b></div>
+        <div class="expr" style="margin-top:6px;color:var(--muted);font-size:12.5px">Share of ${esc(c.drug)}'s reports that mention ${esc(c.rx)}.</div>
+      </div>
+
+      <div class="calc-step">
+        <div class="lbl">3 · Proportion in all other drugs</div>
+        <div class="expr">c / (c+d) <span class="eq">=</span> ${C} / (${C}+${D}) <span class="eq">=</span> ${C} / ${(C+D).toFixed(1)} <span class="eq">=</span> <b>${(C/(C+D)).toFixed(7)}</b></div>
+        <div class="expr" style="margin-top:6px;color:var(--muted);font-size:12.5px">Share of every other drug's reports that mention ${esc(c.rx)} — the background rate.</div>
+      </div>
+
+      <div class="calc-step">
+        <div class="lbl">4 · Ratio</div>
+        <div class="expr">PRR <span class="eq">=</span> [a/(a+b)] / [c/(c+d)]<br>
+        <span class="eq">=</span> ${(A/(A+B)).toFixed(5)} / ${(C/(C+D)).toFixed(7)}<br>
+        <span class="eq">=</span> <b>${c.p.toFixed(4)}</b></div>
+      </div>
+
+      <div class="calc-result">
+        <div class="num">${c.p.toFixed(2)}</div>
+        <div class="lbl2">PRR</div>
+      </div>
+
+      <ul class="readpoints">
+        <li><span class="ic info">i</span><span><b>What it means:</b> ${esc(c.rx)} shows up in ${esc(c.drug)}'s reports at ${c.p.toFixed(1)}× the rate it shows up in reports for every other drug combined.</span></li>
+        <li><span class="ic info">i</span><span><b>vs. ROR:</b> PRR and ROR use different math but tend to agree closely for rare reactions — that's why yours came out nearly identical here.</span></li>
+        <li><span class="ic ${c.a>=3?'ok':'warn'}">${c.a>=3?'✓':'!'}</span><span><b>Traditional PRR threshold</b> (from UK MHRA practice) is often PRR≥2, χ²≥4, a≥3 — similar spirit to this screen's rule, but not identical.</span></li>
+      </ul>`;
+  }
+  html+=`
+    <h4 style="margin-top:22px">This app's research screen</h4>
+    <div class="screenrule">
+      <div class="rule"><span>Minimum reports (a ≥ 3)</span><span class="cond">a = ${c.a}</span><span class="${c.a>=3?'pass':'fail'}">${c.a>=3?'PASS':'FAIL'}</span></div>
+      <div class="rule"><span>ROR above 2</span><span class="cond">ROR = ${c.r.toFixed(2)}</span><span class="${c.r>2?'pass':'fail'}">${c.r>2?'PASS':'FAIL'}</span></div>
+      <div class="rule"><span>Lower 95% CI above 1</span><span class="cond">lower = ${c.lo.toFixed(2)}</span><span class="${c.lo>1?'pass':'fail'}">${c.lo>1?'PASS':'FAIL'}</span></div>
+    </div>
+    <p class="note">All three conditions must pass to be flagged as a potential signal. This is a project-defined screening rule modeled on common pharmacovigilance practice — <b>not</b> an official FDA, EMA, or WHO-UMC threshold, and passing it is not proof of causality. It only means the pattern is statistically worth a closer look.</p>`;
+  $('calcModalBody').innerHTML=html;
+  const m=$('calcModal');
+  m.style.display='flex';
+  requestAnimationFrame(()=>m.classList.add('show'));
+}
+function closeCalcModal(){
+  const m=$('calcModal');
+  m.classList.remove('show');
+  setTimeout(()=>{ if(!m.classList.contains('show'))m.style.display='none'; },260);
 }
 
 /* ---------- report viewer ---------- */
