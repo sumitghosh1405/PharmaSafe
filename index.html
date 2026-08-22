@@ -61,6 +61,37 @@ nav.side button .n svg{width:16px;height:16px}
 nav.side button:hover{background:#ffffff0c;color:#fff}
 nav.side button.active{background:linear-gradient(90deg,#0d9488,#0a6d63);color:#fff;border-left-color:#5eead4;box-shadow:0 0 16px rgba(45,212,191,.25)}
 nav.side button.active .n{color:#bfe9e2}
+/* ---------- per-section neon icon identity ---------- */
+nav.side button[data-t="home"] .n{color:#00d9a3}
+nav.side button[data-t="drug"] .n{color:#00c2ff}
+nav.side button[data-t="rxsearch"] .n{color:#ff7a00}
+nav.side button[data-t="compare"] .n{color:#b026ff}
+nav.side button[data-t="signal"] .n{color:#ff2ec4}
+nav.side button[data-t="outcomes"] .n{color:#ffd60a}
+nav.side button[data-t="trend"] .n{color:#3d5dff}
+nav.side button[data-t="case"] .n{color:#22ff6e}
+nav.side button[data-t="leaderboard"] .n{color:#ff1f4b}
+nav.side button[data-t="recent"] .n{color:#c6ff00}
+nav.side button.active[data-t="home"] .n{color:#6dffcf}
+nav.side button.active[data-t="drug"] .n{color:#7ee8ff}
+nav.side button.active[data-t="rxsearch"] .n{color:#ffbb66}
+nav.side button.active[data-t="compare"] .n{color:#e0aaff}
+nav.side button.active[data-t="signal"] .n{color:#ff8fe0}
+nav.side button.active[data-t="outcomes"] .n{color:#fff066}
+nav.side button.active[data-t="trend"] .n{color:#93a6ff}
+nav.side button.active[data-t="case"] .n{color:#8dffb3}
+nav.side button.active[data-t="leaderboard"] .n{color:#ff8fa3}
+nav.side button.active[data-t="recent"] .n{color:#eaff8f}
+nav.side button.active[data-t="home"]{background:linear-gradient(90deg,#00b385,#009468);border-left-color:#6dffcf;box-shadow:0 0 16px rgba(0,217,163,.35)}
+nav.side button.active[data-t="drug"]{background:linear-gradient(90deg,#0091cc,#0077aa);border-left-color:#7ee8ff;box-shadow:0 0 16px rgba(0,194,255,.35)}
+nav.side button.active[data-t="rxsearch"]{background:linear-gradient(90deg,#e66900,#c25700);border-left-color:#ffbb66;box-shadow:0 0 16px rgba(255,122,0,.35)}
+nav.side button.active[data-t="compare"]{background:linear-gradient(90deg,#9d1fe0,#7f19b8);border-left-color:#e0aaff;box-shadow:0 0 16px rgba(176,38,255,.35)}
+nav.side button.active[data-t="signal"]{background:linear-gradient(90deg,#e01ba8,#b81589);border-left-color:#ff8fe0;box-shadow:0 0 16px rgba(255,46,196,.35)}
+nav.side button.active[data-t="outcomes"]{background:linear-gradient(90deg,#b39400,#8f7700);border-left-color:#fff066;box-shadow:0 0 16px rgba(255,214,10,.35)}
+nav.side button.active[data-t="trend"]{background:linear-gradient(90deg,#3348d1,#2a3bab);border-left-color:#93a6ff;box-shadow:0 0 16px rgba(61,93,255,.35)}
+nav.side button.active[data-t="case"]{background:linear-gradient(90deg,#0fcc58,#0da948);border-left-color:#8dffb3;box-shadow:0 0 16px rgba(34,255,110,.35)}
+nav.side button.active[data-t="leaderboard"]{background:linear-gradient(90deg,#e0173f,#b81233);border-left-color:#ff8fa3;box-shadow:0 0 16px rgba(255,31,75,.35)}
+nav.side button.active[data-t="recent"]{background:linear-gradient(90deg,#9fcc00,#82a800);border-left-color:#eaff8f;box-shadow:0 0 16px rgba(198,255,0,.35)}
 .sidefoot{padding:18px 22px 24px;font-size:10.5px;color:#68807b;border-top:1px solid #ffffff14;font-family:var(--mono);line-height:1.7}
 
 .main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--paper)}
@@ -120,34 +151,61 @@ section.active .card{animation:rise .4s ease .16s both}
 .card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),#3fb3a7,var(--accent-dark));opacity:.85}
 :root[data-theme="dark"] .card::before{box-shadow:0 0 12px 1px var(--accent);filter:brightness(1.15)}
 .card:hover{box-shadow:0 6px 20px rgba(15,22,20,.08);transform:translateY(-1px)}
-#drug .card::before{background:linear-gradient(90deg,#0891b2,#06b6d4)}
-#compare .card::before{background:linear-gradient(90deg,#7c3aed,#a78bfa)}
-#signal .card::before{background:linear-gradient(90deg,#db2777,#f472b6)}
-#outcomes .card::before{background:linear-gradient(90deg,#d97706,#fbbf24)}
-#trend .card::before{background:linear-gradient(90deg,#2563eb,#60a5fa)}
-#case .card::before{background:linear-gradient(90deg,#059669,#34d399)}
-#leaderboard .card::before{background:linear-gradient(90deg,#dc2626,#f87171)}
-#recent .card::before{background:linear-gradient(90deg,#65a30d,#a3e635)}
-#drug .eyebrow{color:#0891b2}
-#compare .eyebrow{color:#7c3aed}
-#signal .eyebrow{color:#db2777}
-#outcomes .eyebrow{color:#d97706}
-#trend .eyebrow{color:#2563eb}
-#case .eyebrow{color:#059669}
-#leaderboard .eyebrow{color:#dc2626}
-#recent .eyebrow{color:#65a30d}
+/* ---------- per-section neon identity: card top-edge glow, eyebrow color, h4 bullet ---------- */
+#home .card::before{background:linear-gradient(90deg,#00d9a3,#6dffcf)}
+#drug .card::before{background:linear-gradient(90deg,#00c2ff,#7ee8ff)}
+#rxsearch .card::before{background:linear-gradient(90deg,#ff7a00,#ffbb66)}
+#compare .card::before{background:linear-gradient(90deg,#b026ff,#e0aaff)}
+#signal .card::before{background:linear-gradient(90deg,#ff2ec4,#ff8fe0)}
+#outcomes .card::before{background:linear-gradient(90deg,#ffd60a,#fff066)}
+#trend .card::before{background:linear-gradient(90deg,#3d5dff,#93a6ff)}
+#case .card::before{background:linear-gradient(90deg,#22ff6e,#8dffb3)}
+#leaderboard .card::before{background:linear-gradient(90deg,#ff1f4b,#ff8fa3)}
+#recent .card::before{background:linear-gradient(90deg,#c6ff00,#eaff8f)}
+:root[data-theme="dark"] #home .card::before{box-shadow:0 0 12px 1px #00d9a3;filter:brightness(1.15)}
+:root[data-theme="dark"] #drug .card::before{box-shadow:0 0 12px 1px #00c2ff;filter:brightness(1.15)}
+:root[data-theme="dark"] #rxsearch .card::before{box-shadow:0 0 12px 1px #ff7a00;filter:brightness(1.15)}
+:root[data-theme="dark"] #compare .card::before{box-shadow:0 0 12px 1px #b026ff;filter:brightness(1.15)}
+:root[data-theme="dark"] #signal .card::before{box-shadow:0 0 12px 1px #ff2ec4;filter:brightness(1.15)}
+:root[data-theme="dark"] #outcomes .card::before{box-shadow:0 0 12px 1px #ffd60a;filter:brightness(1.15)}
+:root[data-theme="dark"] #trend .card::before{box-shadow:0 0 12px 1px #3d5dff;filter:brightness(1.15)}
+:root[data-theme="dark"] #case .card::before{box-shadow:0 0 12px 1px #22ff6e;filter:brightness(1.15)}
+:root[data-theme="dark"] #leaderboard .card::before{box-shadow:0 0 12px 1px #ff1f4b;filter:brightness(1.15)}
+:root[data-theme="dark"] #recent .card::before{box-shadow:0 0 12px 1px #c6ff00;filter:brightness(1.15)}
+#home .eyebrow{color:#00b385}
+#drug .eyebrow{color:#0091cc}
+#rxsearch .eyebrow{color:#e66900}
+#compare .eyebrow{color:#9d1fe0}
+#signal .eyebrow{color:#e01ba8}
+#outcomes .eyebrow{color:#b39400}
+#trend .eyebrow{color:#3348d1}
+#case .eyebrow{color:#0fcc58}
+#leaderboard .eyebrow{color:#e0173f}
+#recent .eyebrow{color:#9fcc00}
+:root[data-theme="dark"] #home .eyebrow{color:#6dffcf}
+:root[data-theme="dark"] #drug .eyebrow{color:#7ee8ff}
+:root[data-theme="dark"] #rxsearch .eyebrow{color:#ffbb66}
+:root[data-theme="dark"] #compare .eyebrow{color:#e0aaff}
+:root[data-theme="dark"] #signal .eyebrow{color:#ff8fe0}
+:root[data-theme="dark"] #outcomes .eyebrow{color:#fff066}
+:root[data-theme="dark"] #trend .eyebrow{color:#93a6ff}
+:root[data-theme="dark"] #case .eyebrow{color:#8dffb3}
+:root[data-theme="dark"] #leaderboard .eyebrow{color:#ff8fa3}
+:root[data-theme="dark"] #recent .eyebrow{color:#eaff8f}
 .card h3{font-family:var(--serif);font-weight:600;font-size:19px;margin:0 0 12px}
 .card h4{font-size:12.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:20px 0 10px;font-weight:600}
 .card h4:first-child{margin-top:0}
 .card h4::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:8px;vertical-align:middle}
-#drug .card h4::before{background:#0891b2}
-#compare .card h4::before{background:#7c3aed}
-#signal .card h4::before{background:#db2777}
-#outcomes .card h4::before{background:#d97706}
-#trend .card h4::before{background:#2563eb}
-#case .card h4::before{background:#059669}
-#leaderboard .card h4::before{background:#dc2626}
-#recent .card h4::before{background:#65a30d}
+#home .card h4::before{background:#00d9a3}
+#drug .card h4::before{background:#00c2ff}
+#rxsearch .card h4::before{background:#ff7a00}
+#compare .card h4::before{background:#b026ff}
+#signal .card h4::before{background:#ff2ec4}
+#outcomes .card h4::before{background:#ffd60a}
+#trend .card h4::before{background:#3d5dff}
+#case .card h4::before{background:#22ff6e}
+#leaderboard .card h4::before{background:#ff1f4b}
+#recent .card h4::before{background:#c6ff00}
 .note{color:var(--muted);font-size:13px;line-height:1.65}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .row3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
@@ -156,6 +214,15 @@ section.active .card{animation:rise .4s ease .16s both}
 label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;letter-spacing:.01em}
 input{width:100%;padding:12px 13px;border:1.5px solid var(--line-strong);border-radius:var(--radius-sm);margin:0 0 14px;font-family:var(--sans);font-size:14.5px;background:var(--panel);color:var(--ink)}
 input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+
+/* ---------- drug-name autocomplete ---------- */
+#drugAcBox{position:absolute;z-index:40;background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(15,22,20,.16);max-height:280px;overflow-y:auto;display:none}
+#drugAcBox .ac-item{padding:9px 13px;font-size:13.5px;font-family:var(--sans);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px}
+#drugAcBox .ac-item:hover,#drugAcBox .ac-item.active{background:var(--accent-soft)}
+#drugAcBox .ac-item b{font-weight:600;color:var(--accent-dark)}
+#drugAcBox .ac-tag{font-size:10.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);flex:none}
+#drugAcBox .ac-loading{padding:10px 13px;font-size:12.5px;color:var(--muted)}
+#drugAcBox .ac-empty{padding:10px 13px;font-size:12.5px;color:var(--muted)}
 
 /* ---------- auth screen ---------- */
 #authModal{position:fixed;inset:0;z-index:50;background:rgba(10,15,14,.5);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity .22s ease}
@@ -288,6 +355,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
 </div>
 
 <div id="appShell">
+<div id="drugAcBox" role="listbox"></div>
 <div class="installbar" id="androidInstall">
   <span>Install PharmaSafe as an app on this device</span>
   <button onclick="doInstall()">Install</button>
@@ -307,6 +375,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
     <nav class="side">
       <button data-t="home" onclick="go('home')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>Overview</button>
       <button data-t="drug" onclick="go('drug')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="4"/><line x1="12" y1="8" x2="12" y2="16"/></svg></span>Drug analysis</button>
+      <button data-t="rxsearch" onclick="go('rxsearch')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M7.3 10.5h1.6l1-3 1.8 5.5 1-2.5h2"/><line x1="15.3" y1="15.3" x2="20" y2="20"/></svg></span>Reaction search</button>
       <button data-t="compare" onclick="go('compare')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6.5"/><circle cx="15" cy="12" r="6.5"/></svg></span>Compare drugs</button>
       <button data-t="signal" onclick="go('signal')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,12 8,12 10,6 14,18 16,12 21,12"/></svg></span>Signal detection</button>
       <button data-t="outcomes" onclick="go('outcomes')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L21 19 L3 19 Z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="16.7" r="0.6" fill="currentColor" stroke="none"/></svg></span>Outcome severity</button>
@@ -344,7 +413,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
         <div class="hero">
           <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6L4 20a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3L15 8V2"/><line x1="8" y1="2" x2="16" y2="2"/><line x1="8.5" y1="14" x2="15.5" y2="14"/></svg>Research prototype</p>
           <h1>Statistical screening for real-world adverse event signals</h1>
-          <p>Nine tools for disproportionality screening, drug comparison, and case-level review — built directly on FDA's public AEMS/FAERS adverse-event index.</p>
+          <p>Ten tools for disproportionality screening, drug comparison, and case-level review — built directly on FDA's public AEMS/FAERS adverse-event index.</p>
           <button class="btn" onclick="go('drug')" style="background:#fff;color:#0e3b3e">Analyze a drug →</button>
         </div>
 
@@ -367,20 +436,32 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
         <p class="lede">Pulls every reaction term reported against a medicinal product, ranked by report volume, plus a live sex breakdown of the patients who experienced them.</p>
         <div class="card">
           <label>Generic or medicinal product name</label>
-          <input id="drugName" placeholder="e.g. atorvastatin" onkeydown="if(event.key==='Enter')drugSearch()">
+          <input id="drugName" class="drugac" placeholder="e.g. atorvastatin" autocomplete="off" onkeydown="if(event.key==='Enter')drugSearch()">
           <button class="btn" id="drugBtn" onclick="drugSearch()">Analyze</button>
           <div id="drugOut"></div>
         </div>
       </section>
 
+      <section id="rxsearch">
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M7.3 10.5h1.6l1-3 1.8 5.5 1-2.5h2"/><line x1="15.3" y1="15.3" x2="20" y2="20"/></svg>03 · Reaction search</p>
+        <h2>Drugs implicated by reaction / MedDRA PT</h2>
+        <p class="lede">Search by symptom or MedDRA preferred term instead of by drug — pulls every medicinal product reported against that reaction, ranked by report volume. Plain-language terms (e.g. "heart attack", "throwing up") are matched to their MedDRA PT automatically.</p>
+        <div class="card">
+          <label>Reaction, symptom, or MedDRA preferred term</label>
+          <input id="rxName" class="drugac" data-ac-type="reaction" placeholder="e.g. myalgia, or &quot;muscle pain&quot;" autocomplete="off" onkeydown="if(event.key==='Enter')reactionSearch()">
+          <button class="btn" id="rxBtn" onclick="reactionSearch()">Analyze</button>
+          <div id="rxOut"></div>
+        </div>
+      </section>
+
       <section id="compare">
-        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6.5"/><circle cx="15" cy="12" r="6.5"/></svg>03 · Compare drugs</p>
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6.5"/><circle cx="15" cy="12" r="6.5"/></svg>04 · Compare drugs</p>
         <h2>Side-by-side comparison</h2>
         <p class="lede">Compares total report volume and top reaction terms for two drugs, so relative risk profiles are visible at a glance.</p>
         <div class="card">
           <div class="row2">
-            <div><label>Drug A</label><input id="cmpA" placeholder="e.g. atorvastatin"></div>
-            <div><label>Drug B</label><input id="cmpB" placeholder="e.g. rosuvastatin"></div>
+            <div><label>Drug A</label><input id="cmpA" class="drugac" placeholder="e.g. atorvastatin" autocomplete="off"></div>
+            <div><label>Drug B</label><input id="cmpB" class="drugac" placeholder="e.g. rosuvastatin" autocomplete="off"></div>
           </div>
           <button class="btn" id="cmpBtn" onclick="compareDrugs()">Compare</button>
           <div id="cmpOut"></div>
@@ -388,13 +469,13 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       </section>
 
       <section id="signal">
-        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,12 8,12 10,6 14,18 16,12 21,12"/></svg>04 · Signal detection</p>
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,12 8,12 10,6 14,18 16,12 21,12"/></svg>05 · Signal detection</p>
         <h2>Disproportionality screen</h2>
         <p class="lede">Builds the 2×2 contingency table for a drug–reaction pair across the full FAERS index and computes ROR and PRR with 95% confidence intervals.</p>
         <div class="card">
           <div class="row2">
-            <div><label>Drug</label><input id="sigDrug" placeholder="e.g. atorvastatin"></div>
-            <div><label>Reaction / MedDRA PT</label><input id="sigRx" placeholder="e.g. myalgia"></div>
+            <div><label>Drug</label><input id="sigDrug" class="drugac" placeholder="e.g. atorvastatin" autocomplete="off"></div>
+            <div><label>Reaction / MedDRA PT</label><input id="sigRx" class="drugac" data-ac-type="reaction" placeholder="e.g. myalgia, or &quot;muscle pain&quot;" autocomplete="off"></div>
           </div>
           <button class="btn" id="sigBtn" onclick="signal()">Calculate</button>
           <div id="sigOut"></div>
@@ -402,24 +483,24 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       </section>
 
       <section id="outcomes">
-        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L21 19 L3 19 Z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="16.7" r="0.6" fill="currentColor" stroke="none"/></svg>05 · Outcome severity</p>
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L21 19 L3 19 Z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="16.7" r="0.6" fill="currentColor" stroke="none"/></svg>06 · Outcome severity</p>
         <h2>Serious outcome breakdown</h2>
         <p class="lede">Shows what share of reports naming this drug were coded as death, hospitalization, disability, life-threatening, or another serious outcome.</p>
         <div class="card">
           <label>Drug</label>
-          <input id="outDrug" placeholder="e.g. atorvastatin" onkeydown="if(event.key==='Enter')outcomes()">
+          <input id="outDrug" class="drugac" placeholder="e.g. atorvastatin" autocomplete="off" onkeydown="if(event.key==='Enter')outcomes()">
           <button class="btn" id="outBtn" onclick="outcomes()">Analyze outcomes</button>
           <div id="outOut"></div>
         </div>
       </section>
 
       <section id="trend">
-        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,17 9,11 13,15 21,5"/><polyline points="15,5 21,5 21,11"/></svg>06 · Trend</p>
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,17 9,11 13,15 21,5"/><polyline points="15,5 21,5 21,11"/></svg>07 · Trend</p>
         <h2>Report volume over time</h2>
         <p class="lede">Report counts by receive date — useful for spotting reporting spikes after label changes, media coverage, or REMS updates.</p>
         <div class="card">
           <label>Drug</label>
-          <input id="trendDrug" placeholder="e.g. atorvastatin" onkeydown="if(event.key==='Enter')trend()">
+          <input id="trendDrug" class="drugac" placeholder="e.g. atorvastatin" autocomplete="off" onkeydown="if(event.key==='Enter')trend()">
           <button class="btn" id="trendBtn" onclick="trend()">Load trend</button>
           <div id="trendMsg"></div>
           <canvas id="trendChart" style="margin-top:18px"></canvas>
@@ -427,7 +508,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       </section>
 
       <section id="case">
-        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 H16 L20 6 V22 H6 Z"/><line x1="9" y1="12" x2="17" y2="12"/><line x1="9" y1="16" x2="17" y2="16"/></svg>07 · Report viewer</p>
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 H16 L20 6 V22 H6 Z"/><line x1="9" y1="12" x2="17" y2="12"/><line x1="9" y1="16" x2="17" y2="16"/></svg>08 · Report viewer</p>
         <h2>Individual case safety report</h2>
         <p class="lede">Look up one public FAERS report by its safety report ID and see exactly what was submitted.</p>
         <div class="card">
@@ -439,7 +520,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       </section>
 
       <section id="leaderboard">
-        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="15" width="4" height="6" rx="1"/></svg>08 · Leaderboard</p>
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="15" width="4" height="6" rx="1"/></svg>09 · Leaderboard</p>
         <h2>Most reported drugs &amp; reactions</h2>
         <p class="lede">The highest-volume medicinal products and reaction terms across the entire public FAERS index — a snapshot of what's being reported most right now.</p>
         <div class="card">
@@ -449,7 +530,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       </section>
 
       <section id="recent">
-        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 16,14"/></svg>09 · Recent reports</p>
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 16,14"/></svg>10 · Recent reports</p>
         <h2>Latest public submissions</h2>
         <p class="lede">The 20 most recently received reports in the openFDA index.</p>
         <div class="card">
@@ -476,7 +557,7 @@ const ICONS={
 const BASE="https://api.fda.gov/drug/event.json";
 const LABEL_BASE="https://api.fda.gov/drug/label.json";
 
-const TITLES={home:'Overview',drug:'Drug analysis',compare:'Compare drugs',signal:'Signal detection',outcomes:'Outcome severity',trend:'Trend',case:'Report viewer',leaderboard:'Leaderboard',recent:'Recent reports'};
+const TITLES={home:'Overview',drug:'Drug analysis',rxsearch:'Reaction search',compare:'Compare drugs',signal:'Signal detection',outcomes:'Outcome severity',trend:'Trend',case:'Report viewer',leaderboard:'Leaderboard',recent:'Recent reports'};
 let currentSection='home';
 function go(x){
   document.querySelectorAll('section').forEach(s=>s.classList.remove('active'));
@@ -489,6 +570,37 @@ function go(x){
   if(x==='leaderboard' && !state.leaderboard.loaded)leaderboard();
 }
 function esc(x){return String(x??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+/* ---------- de-duplication for grouped counts ----------
+   openFDA's medicinalproduct/reactionmeddrapt fields are raw, as-submitted
+   text with no normalization, so "paroxetine", "Paroxetine", "paroxetine "
+   (trailing space), and "PAROXETINE." (trailing period — very common in
+   FAERS submissions) are all distinct buckets under the `.exact` count
+   aggregation even though they render as, or clearly mean, the same
+   real-world term. Left unmerged, a drug/reaction's true report volume
+   gets silently split across near-duplicate rows, which understates its
+   rank in every top-N list, chart, autocomplete suggestion, and the
+   leaderboard. cleanLabel() strips that noise for display; normKey() uses
+   the same cleanup to decide what counts as "the same" term so rows merge
+   (counts summed, most-reported original spelling kept as the label). */
+function cleanLabel(s){return String(s||'').replace(/\s+/g,' ').trim().replace(/[.,;:]+$/,'').trim();}
+function normKey(s){return cleanLabel(s).toLowerCase();}
+function mergeTermCounts(results){
+  const map=new Map();
+  (results||[]).forEach(r=>{
+    if(!r||!r.term)return;
+    const key=normKey(r.term);
+    if(!key)return;
+    const label=cleanLabel(r.term);
+    const cur=map.get(key);
+    if(!cur)map.set(key,{term:label,count:r.count,bestCount:r.count});
+    else{
+      cur.count+=r.count;
+      if(r.count>cur.bestCount){cur.term=label;cur.bestCount=r.count;}
+    }
+  });
+  return Array.from(map.values()).map(({term,count})=>({term,count})).sort((a,b)=>b.count-a.count);
+}
 function q(s){return '"' + String(s).replace(/"/g,'\\"') + '"'}
 
 /* ---------- FAERS coded-field lookups ---------- */
@@ -511,6 +623,409 @@ function fmtAge(age,unit){
 function fmtRole(code){return DRUG_ROLE_MAP[String(code??'')]||'Not reported';}
 function dq(drug){return 'patient.drug.medicinalproduct:'+q(drug)}
 function rq(rx){return 'patient.reaction.reactionmeddrapt:'+q(rx)}
+
+/* ---------- drug name resolution: synonyms + typo tolerance ----------
+   openFDA's medicinalproduct field is raw, as-submitted text — it is NOT
+   normalized to a single generic name, so "paracetamol" and "acetaminophen"
+   (same drug, different regional names) exist as literally different strings
+   in the data. openFDA's docs confirm only the `*` wildcard operator is
+   supported (no documented fuzzy/`~` search), so typo tolerance here is built
+   from confirmed-safe techniques only: a curated synonym list, plus a
+   trailing-wildcard retry for missing/extra letters at the end of a word. */
+const DRUG_SYNONYMS={
+  'paracetamol':['acetaminophen'],'acetaminophen':['paracetamol'],
+  'salbutamol':['albuterol'],'albuterol':['salbutamol'],
+  'adrenaline':['epinephrine'],'epinephrine':['adrenaline'],
+  'noradrenaline':['norepinephrine'],'norepinephrine':['noradrenaline'],
+  'frusemide':['furosemide'],'furosemide':['frusemide'],
+  'diclofenac':['voltaren'],'voltaren':['diclofenac'],
+  'ibuprofen':['brufen','advil','motrin'],'brufen':['ibuprofen'],'advil':['ibuprofen'],'motrin':['ibuprofen'],
+  'aspirin':['acetylsalicylic acid','asa'],'acetylsalicylic acid':['aspirin'],
+  'diazepam':['valium'],'valium':['diazepam'],
+  'lorazepam':['ativan'],'ativan':['lorazepam'],
+  'alprazolam':['xanax'],'xanax':['alprazolam'],
+  'sertraline':['zoloft'],'zoloft':['sertraline'],
+  'fluoxetine':['prozac'],'prozac':['fluoxetine'],
+  'atorvastatin':['lipitor'],'lipitor':['atorvastatin'],
+  'simvastatin':['zocor'],'zocor':['simvastatin'],
+  'omeprazole':['prilosec','losec'],'prilosec':['omeprazole'],'losec':['omeprazole'],
+  'esomeprazole':['nexium'],'nexium':['esomeprazole'],
+  'metformin':['glucophage'],'glucophage':['metformin'],
+  'levothyroxine':['synthroid','thyroxine'],'synthroid':['levothyroxine'],'thyroxine':['levothyroxine'],
+  'warfarin':['coumadin'],'coumadin':['warfarin'],
+  'amoxicillin':['amoxil'],'amoxil':['amoxicillin'],
+  'metoprolol':['lopressor','toprol'],'lopressor':['metoprolol'],'toprol':['metoprolol'],
+  'lisinopril':['zestril','prinivil'],'zestril':['lisinopril'],'prinivil':['lisinopril'],
+  'amlodipine':['norvasc'],'norvasc':['amlodipine'],
+  'losartan':['cozaar'],'cozaar':['losartan'],
+  'hydrochlorothiazide':['hctz','microzide'],'hctz':['hydrochlorothiazide'],
+  'gabapentin':['neurontin'],'neurontin':['gabapentin'],
+  'tramadol':['ultram'],'ultram':['tramadol'],
+  'oxycodone':['oxycontin'],'oxycontin':['oxycodone'],
+  'hydrocodone':['vicodin','norco'],'vicodin':['hydrocodone'],'norco':['hydrocodone'],
+  'cetirizine':['zyrtec'],'zyrtec':['cetirizine'],
+  'loratadine':['claritin'],'claritin':['loratadine'],
+  'montelukast':['singulair'],'singulair':['montelukast'],
+  'clopidogrel':['plavix'],'plavix':['clopidogrel'],
+  'quetiapine':['seroquel'],'seroquel':['quetiapine'],
+  'risperidone':['risperdal'],'risperdal':['risperidone'],
+  'olanzapine':['zyprexa'],'zyprexa':['olanzapine'],
+  'aripiprazole':['abilify'],'abilify':['aripiprazole'],
+  'venlafaxine':['effexor'],'effexor':['venlafaxine'],
+  'duloxetine':['cymbalta'],'cymbalta':['duloxetine'],
+  'bupropion':['wellbutrin'],'wellbutrin':['bupropion'],
+  'zolpidem':['ambien'],'ambien':['zolpidem'],
+  'methylphenidate':['ritalin','concerta'],'ritalin':['methylphenidate'],'concerta':['methylphenidate'],
+  'prednisolone':['prelone'],'prednisone':['deltasone'],'deltasone':['prednisone'],
+  'ranitidine':['zantac'],'zantac':['ranitidine'],
+  'famotidine':['pepcid'],'pepcid':['famotidine'],
+  'naproxen':['aleve','naprosyn'],'aleve':['naproxen'],'naprosyn':['naproxen'],
+  'celecoxib':['celebrex'],'celebrex':['celecoxib'],
+  'meloxicam':['mobic'],'mobic':['meloxicam'],
+  'spironolactone':['aldactone'],'aldactone':['spironolactone'],
+  'azithromycin':['zithromax','z-pack'],'zithromax':['azithromycin'],
+  'ciprofloxacin':['cipro'],'cipro':['ciprofloxacin'],
+  'doxycycline':['vibramycin'],'vibramycin':['doxycycline'],
+};
+function drugSynonyms(name){
+  const key=String(name||'').trim().toLowerCase();
+  return DRUG_SYNONYMS[key]||[];
+}
+
+/* ---------- reaction/MedDRA PT synonyms: lay symptom terms ↔ the terms
+   FAERS reports actually use. FAERS codes reactions to MedDRA preferred
+   terms, which frequently differ from how a patient or clinician would say
+   a symptom in plain language ("throwing up" vs "vomiting"), and often use
+   British/international spelling ("diarrhoea", "oedema", "anaemia") even in
+   US-submitted reports. This dictionary + the wildcard/CT-search fallbacks
+   below exist so a lay search term still finds the matching PT. */
+const REACTION_SYNONYMS={
+  'heart attack':['myocardial infarction'],'myocardial infarction':['heart attack'],
+  'stroke':['cerebrovascular accident'],'cerebrovascular accident':['stroke'],
+  'throwing up':['vomiting'],'vomiting':['throwing up'],
+  'feeling sick':['nausea'],
+  'itching':['pruritus'],'pruritus':['itching'],
+  'swelling':['oedema','edema'],'swollen':['oedema','edema'],
+  'edema':['oedema'],'oedema':['edema'],
+  'shortness of breath':['dyspnoea'],'difficulty breathing':['dyspnoea'],'dyspnea':['dyspnoea'],'dyspnoea':['dyspnea'],
+  'high blood pressure':['hypertension'],'low blood pressure':['hypotension'],
+  'high blood sugar':['hyperglycaemia'],'hyperglycemia':['hyperglycaemia'],'hyperglycaemia':['hyperglycemia'],
+  'low blood sugar':['hypoglycaemia'],'hypoglycemia':['hypoglycaemia'],'hypoglycaemia':['hypoglycemia'],
+  'kidney failure':['renal failure'],'liver failure':['hepatic failure'],'liver damage':['hepatotoxicity'],
+  'seizure':['convulsion'],'fits':['convulsion'],'convulsions':['convulsion'],
+  'passing out':['syncope'],'fainting':['syncope'],
+  'heart palpitations':['palpitations'],'racing heart':['tachycardia'],'fast heartbeat':['tachycardia'],
+  'slow heart rate':['bradycardia'],'irregular heartbeat':['arrhythmia'],
+  'blood clot':['thrombosis'],'stomach pain':['abdominal pain'],'stomach ache':['abdominal pain'],
+  'weight gain':['weight increased'],'weight loss':['weight decreased'],
+  'hair loss':['alopecia'],'muscle pain':['myalgia'],'joint pain':['arthralgia'],
+  'numbness':['hypoaesthesia','paraesthesia'],'tingling':['paraesthesia'],'paresthesia':['paraesthesia'],'paraesthesia':['paresthesia'],
+  'confusion':['confusional state'],'memory loss':['amnesia'],
+  'suicidal thoughts':['suicidal ideation'],
+  'drowsiness':['somnolence'],'sleepiness':['somnolence'],
+  'blurred vision':['vision blurred'],'ringing in ears':['tinnitus'],'hearing loss':['deafness'],
+  'difficulty swallowing':['dysphagia'],'excessive thirst':['polydipsia'],'frequent urination':['pollakiuria'],
+  'blood in urine':['haematuria'],'hematuria':['haematuria'],'haematuria':['hematuria'],
+  'bloating':['abdominal distension'],'gas':['flatulence'],'heartburn':['dyspepsia'],
+  'acid reflux':['gastrooesophageal reflux disease'],
+  'yellowing of skin':['jaundice'],'yellow skin':['jaundice'],
+  'bruising':['ecchymosis'],'bleeding':['haemorrhage'],'hemorrhage':['haemorrhage'],'haemorrhage':['hemorrhage'],
+  'fever':['pyrexia'],'sweating':['hyperhidrosis'],'weakness':['asthenia'],
+  'difficulty walking':['gait disturbance'],'loss of appetite':['decreased appetite'],
+  'hallucinations':['hallucination'],'shaking':['tremor'],'muscle spasm':['muscle spasms'],
+  'hives':['urticaria'],'difficulty concentrating':['disturbance in attention'],
+  'irregular periods':['menstruation irregular'],'miscarriage':['abortion spontaneous'],
+  'birth defect':['congenital anomaly'],'anemia':['anaemia'],'anaemia':['anemia'],
+};
+function reactionSynonyms(name){
+  const key=String(name||'').trim().toLowerCase();
+  return REACTION_SYNONYMS[key]||[];
+}
+
+/* ---------- RxNorm: comprehensive drug-name normalization ----------
+   NLM's RxNorm covers essentially every US-marketed ingredient and brand
+   name (tens of thousands of concepts) plus recognized international
+   synonyms (e.g. paracetamol↔acetaminophen) — far beyond any hand-curated
+   list. Its REST API is free, requires no key, and officially supports
+   CORS, so it can be called directly from the browser. Used as a
+   comprehensive fallback layer when the fast local dictionary doesn't
+   already know the term. */
+const RXNORM_BASE='https://rxnav.nlm.nih.gov/REST';
+async function rxnormGet(path){
+  const ctl=new AbortController();
+  const t=setTimeout(()=>ctl.abort(),4000);
+  try{
+    const r=await fetch(RXNORM_BASE+path,{signal:ctl.signal});
+    if(!r.ok)return null;
+    return await r.json();
+  }catch(e){return null;}
+  finally{clearTimeout(t);}
+}
+async function rxcuiProperName(rxcui){
+  const j=await rxnormGet('/rxcui/'+encodeURIComponent(rxcui)+'/property.json?propName=RxNorm%20Name');
+  return j?.propConceptGroup?.propConcept?.[0]?.propValue||null;
+}
+/** Normalized RxNorm search — matches across word order, salts, abbreviations,
+ * and recognized synonyms (this is what catches paracetamol→acetaminophen). */
+async function rxnormNormalized(name){
+  const j=await rxnormGet('/rxcui.json?name='+encodeURIComponent(name)+'&search=2');
+  const rxcui=j?.idGroup?.rxnormId?.[0];
+  if(!rxcui)return null;
+  return await rxcuiProperName(rxcui);
+}
+/** Fuzzy/approximate RxNorm search — corrects misspellings, missing/extra
+ * words, and known abbreviations across RxNorm's full drug corpus. */
+async function rxnormApproximate(name){
+  const j=await rxnormGet('/approximateTerm.json?term='+encodeURIComponent(name)+'&maxEntries=5');
+  const candidates=j?.approximateGroup?.candidate||[];
+  const names=[];
+  for(const c of candidates.slice(0,3)){
+    if(!c.rxcui)continue;
+    const nm=await rxcuiProperName(c.rxcui);
+    if(nm && !names.includes(nm))names.push(nm);
+  }
+  return names;
+}
+
+/* ---------- NLM Clinical Table Search Service: lay symptom → clinical term
+   ----------
+   Free, no-key, CORS-enabled autocomplete API over Regenstrief's Medical
+   Conditions table (consumer-friendly names, primary clinical names, and
+   thousands of word/full-term synonyms). Used as a second, much broader
+   layer of reaction-term normalization beyond the local dictionary above —
+   the same role RxNorm plays for drug names — so a plain-language complaint
+   like "trouble breathing" can still resolve to the clinical wording FAERS
+   is more likely to use. */
+const CT_CONDITIONS_BASE='https://clinicaltables.nlm.nih.gov/api/conditions/v3/search';
+async function conditionsMatches(term){
+  const ctl=new AbortController();
+  const t=setTimeout(()=>ctl.abort(),4000);
+  try{
+    const url=CT_CONDITIONS_BASE+'?terms='+encodeURIComponent(term)+
+      '&sf=consumer_name,primary_name,word_synonyms,synonyms&df=consumer_name,primary_name&maxList=6';
+    const r=await fetch(url,{signal:ctl.signal});
+    if(!r.ok)return [];
+    const j=await r.json();
+    const rows=j?.[3]||[];
+    const names=[];
+    rows.forEach(row=>(row||[]).forEach(v=>{if(v && !names.includes(v))names.push(v);}));
+    return names;
+  }catch(e){return [];}
+  finally{clearTimeout(t);}
+}
+
+/** Tries the name as typed, then the fast local synonym dictionary, then
+ * RxNorm's full-corpus normalized + approximate matching, then a wildcard
+ * retry for missing/extra trailing letters. Returns {name, query, matched,
+ * tried} where `name` is whichever term actually returned results (or the
+ * original if nothing did), and `matched` is true only if a substitution
+ * happened. */
+async function resolveDrugName(original){
+  const tried=[];
+  const seen=new Set();
+  async function attempt(candidate){
+    const key=candidate.toLowerCase();
+    if(seen.has(key))return null;
+    seen.add(key);
+    tried.push(candidate);
+    const c=await total(dq(candidate));
+    return c>0?{name:candidate,count:c}:null;
+  }
+
+  // Layer 1: exact term, then the fast local dictionary (no network round-trip).
+  for(const candidate of [original, ...drugSynonyms(original)]){
+    const hit=await attempt(candidate);
+    if(hit)return {name:hit.name, query:dq(hit.name), matched:hit.name.toLowerCase()!==original.toLowerCase(), tried, count:hit.count};
+  }
+
+  // Layer 2: RxNorm normalized search — catches synonyms/brand-generic across
+  // essentially the entire US drug corpus, not just the local list.
+  const normalized=await rxnormNormalized(original);
+  if(normalized){
+    const hit=await attempt(normalized);
+    if(hit)return {name:hit.name, query:dq(hit.name), matched:true, tried, count:hit.count};
+  }
+
+  // Layer 3: RxNorm approximate/fuzzy search — corrects typos and missing
+  // words against the same full corpus.
+  const approx=await rxnormApproximate(original);
+  for(const candidate of approx){
+    const hit=await attempt(candidate);
+    if(hit)return {name:hit.name, query:dq(hit.name), matched:true, tried, count:hit.count};
+  }
+
+  // Layer 4: last-resort local wildcard for missing/extra trailing letters —
+  // confirmed-safe `*` operator, unquoted, single word only.
+  const single=original.trim();
+  if(single && !single.includes(' ') && single.length>=4){
+    for(const cut of [1,2]){
+      if(single.length-cut<3)break;
+      const stem=single.slice(0,single.length-cut);
+      const wq='patient.drug.medicinalproduct:'+stem+'*';
+      tried.push(stem+'*');
+      const c=await total(wq);
+      if(c>0)return {name:stem+'*', query:wq, matched:true, wildcard:true, tried, count:c};
+    }
+  }
+  return {name:original, query:dq(original), matched:false, tried, count:0};
+}
+
+/** Same shape/contract as resolveDrugName, for reaction/MedDRA PT terms:
+ * tries the term as typed, then the local lay-term↔PT dictionary, then the
+ * NLM Clinical Table conditions service as a broad normalization layer,
+ * then a trailing-wildcard retry. Returns {name, query, matched, wildcard,
+ * tried, count}. */
+async function resolveReactionName(original){
+  const tried=[];
+  const seen=new Set();
+  async function attempt(candidate){
+    const key=candidate.toLowerCase();
+    if(seen.has(key))return null;
+    seen.add(key);
+    tried.push(candidate);
+    const c=await total(rq(candidate));
+    return c>0?{name:candidate,count:c}:null;
+  }
+
+  // Layer 1: exact term, then the fast local lay-term/spelling dictionary.
+  for(const candidate of [original, ...reactionSynonyms(original)]){
+    const hit=await attempt(candidate);
+    if(hit)return {name:hit.name, query:rq(hit.name), matched:hit.name.toLowerCase()!==original.toLowerCase(), tried, count:hit.count};
+  }
+
+  // Layer 2: NLM Clinical Table conditions search — catches plain-language
+  // symptom descriptions the local dictionary doesn't have an entry for.
+  const consumerMatches=await conditionsMatches(original);
+  for(const candidate of consumerMatches){
+    const hit=await attempt(candidate);
+    if(hit)return {name:hit.name, query:rq(hit.name), matched:true, tried, count:hit.count};
+  }
+
+  // Layer 3: last-resort local wildcard for missing/extra trailing letters.
+  const single=original.trim();
+  if(single && !single.includes(' ') && single.length>=4){
+    for(const cut of [1,2]){
+      if(single.length-cut<3)break;
+      const stem=single.slice(0,single.length-cut);
+      const wq='patient.reaction.reactionmeddrapt:'+stem+'*';
+      tried.push(stem+'*');
+      const c=await total(wq);
+      if(c>0)return {name:stem+'*', query:wq, matched:true, wildcard:true, tried, count:c};
+    }
+  }
+  return {name:original, query:rq(original), matched:false, tried, count:0};
+}
+function matchNoteHtml(res,original){
+  if(!res.matched)return '';
+  const shown=res.wildcard?`results starting with "${esc(res.name.replace(/\*$/,''))}"`:`"${esc(res.name)}"`;
+  return `<p class="note" style="margin:-6px 0 14px">Showing ${shown} — no reports were found for "${esc(original)}" exactly. <a href="#" onclick="event.preventDefault();this.closest('.card').querySelector('input').value='${esc(original).replace(/'/g,"\\'")}';return false;" style="color:inherit;text-decoration:underline">Search only the exact term instead</a></p>`;
+}
+
+/* ---------- live drug-name autocomplete ----------
+   Suggests as-you-type from two sources: (1) the local synonym dictionary,
+   instantly, for well-known brand/generic/international names; and (2) real
+   openFDA data — a wildcard search on the drug field, counted/aggregated so
+   suggestions are actual medicinalproduct strings that exist in FAERS,
+   ranked by report volume. Because suggestions come straight from the same
+   field the tools search, picking one is guaranteed to return results. */
+let acDebounce=null, acActiveInput=null, acItems=[], acIndex=-1, acToken=0;
+
+function localDictMatches(prefix,type){
+  const p=prefix.toLowerCase();
+  const dict=type==='reaction'?REACTION_SYNONYMS:DRUG_SYNONYMS;
+  const out=[];
+  for(const key of Object.keys(dict)){
+    if(key.startsWith(p) && key!==p){
+      out.push({label:key, tag:'related'});
+      if(out.length>=5)break;
+    }
+  }
+  return out;
+}
+
+async function fdaDrugMatches(prefix,type){
+  const field=type==='reaction'?'patient.reaction.reactionmeddrapt':'patient.drug.medicinalproduct';
+  try{
+    const x=await fda({search:field+':'+prefix+'*',count:field+'.exact'});
+    const merged=mergeTermCounts((x.results||[]).map(r=>({term:r.term,count:r.count})));
+    return merged.slice(0,8).map(r=>({label:r.term,tag:'FDA',count:r.count}));
+  }catch(e){return [];}
+}
+
+function renderAcBox(items,loading){
+  const box=$('drugAcBox');
+  acItems=items; acIndex=-1;
+  if(!items.length && !loading){box.style.display='none';return;}
+  let html=items.map((it,i)=>`<div class="ac-item" data-i="${i}" onmousedown="event.preventDefault();selectAcItem(${i})">
+      <span>${esc(it.label)}</span><span class="ac-tag">${it.tag==='FDA'?(it.count?it.count.toLocaleString()+' reports':'FDA'):'related'}</span>
+    </div>`).join('');
+  if(loading)html+='<div class="ac-loading">Searching openFDA…</div>';
+  box.innerHTML=html||'<div class="ac-empty">No matches found</div>';
+  box.style.display='block';
+}
+function positionAcBox(input){
+  const box=$('drugAcBox'), r=input.getBoundingClientRect();
+  box.style.left=(r.left+window.scrollX)+'px';
+  box.style.top=(r.bottom+window.scrollY+4)+'px';
+  box.style.width=r.width+'px';
+}
+function closeAcBox(){
+  $('drugAcBox').style.display='none';
+  acActiveInput=null; acItems=[]; acIndex=-1;
+}
+function selectAcItem(i){
+  const it=acItems[i]; if(!it||!acActiveInput)return;
+  const input=acActiveInput;
+  input.value=it.label;
+  closeAcBox();
+  input.focus();
+}
+async function onDrugInput(e){
+  const input=e.target;
+  const type=input.dataset.acType||'drug';
+  acActiveInput=input;
+  const val=input.value.trim();
+  const myToken=++acToken;
+  if(val.length<3){closeAcBox();return;}
+  positionAcBox(input);
+  const local=localDictMatches(val,type);
+  renderAcBox(local,true);
+  clearTimeout(acDebounce);
+  acDebounce=setTimeout(async()=>{
+    const fdaMatches=await fdaDrugMatches(val,type);
+    if(myToken!==acToken)return; // a newer keystroke superseded this request
+    const seen=new Set(local.map(x=>x.label.toLowerCase()));
+    const merged=[...local];
+    for(const m of fdaMatches){
+      const k=m.label.toLowerCase();
+      if(!seen.has(k)){seen.add(k);merged.push(m);}
+    }
+    renderAcBox(merged.slice(0,10),false);
+  },300);
+}
+function onDrugKeydown(e){
+  const box=$('drugAcBox');
+  if(box.style.display!=='block'||!acItems.length)return;
+  if(e.key==='ArrowDown'){e.preventDefault();acIndex=Math.min(acIndex+1,acItems.length-1);highlightAc();}
+  else if(e.key==='ArrowUp'){e.preventDefault();acIndex=Math.max(acIndex-1,0);highlightAc();}
+  else if(e.key==='Enter'){if(acIndex>=0){e.preventDefault();selectAcItem(acIndex);}else closeAcBox();}
+  else if(e.key==='Escape'){closeAcBox();}
+}
+function highlightAc(){
+  $('drugAcBox').querySelectorAll('.ac-item').forEach((el,i)=>el.classList.toggle('active',i===acIndex));
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.drugac') && !e.target.closest('#drugAcBox'))closeAcBox();
+});
+window.addEventListener('resize',()=>{if(acActiveInput)positionAcBox(acActiveInput);});
+function wireAutocomplete(){
+  document.querySelectorAll('.drugac').forEach(input=>{
+    input.addEventListener('input',onDrugInput);
+    input.addEventListener('keydown',onDrugKeydown);
+    input.addEventListener('blur',()=>setTimeout(()=>{if(document.activeElement!==input)closeAcBox();},150));
+  });
+}
+wireAutocomplete();
 
 /* ---------- theme ---------- */
 function toggleTheme(){
@@ -625,7 +1140,7 @@ const PAL=['#0891b2','#7c3aed','#db2777','#d97706','#059669','#2563eb','#dc2626'
 
 /* ---------- auto-refresh engine ---------- */
 const state={
-  drug:{loaded:false,name:null}, compare:{loaded:false,a:null,b:null},
+  drug:{loaded:false,name:null}, rxsearch:{loaded:false,name:null}, compare:{loaded:false,a:null,b:null},
   signal:{loaded:false,drug:null,rx:null}, outcomes:{loaded:false,name:null},
   trend:{loaded:false,name:null}, leaderboard:{loaded:false}, recent:{loaded:false}
 };
@@ -652,6 +1167,7 @@ async function refreshNow(silent){
   if(currentSection==='recent')await recent(silent);
   else if(currentSection==='leaderboard')await leaderboard(silent);
   else if(currentSection==='drug' && state.drug.loaded)await drugSearch(silent);
+  else if(currentSection==='rxsearch' && state.rxsearch.loaded)await reactionSearch(silent);
   else if(currentSection==='compare' && state.compare.loaded)await compareDrugs(silent);
   else if(currentSection==='signal' && state.signal.loaded)await signal(silent);
   else if(currentSection==='outcomes' && state.outcomes.loaded)await outcomes(silent);
@@ -703,19 +1219,22 @@ async function drugSearch(silent){
     if(!n)return needInput('drugOut','Enter a drug name to analyze.');
     if(!silent)$('drugOut').innerHTML=skeleton(5);
     try{
+      const res=await resolveDrugName(n);
       const [reports,x,sexX]=await Promise.all([
-        total(dq(n)),
-        fda({search:dq(n),count:'patient.reaction.reactionmeddrapt.exact'}),
-        fetchSexDistribution(dq(n))
+        Promise.resolve(res.count),
+        fda({search:res.query,count:'patient.reaction.reactionmeddrapt.exact'}),
+        fetchSexDistribution(res.query)
       ]);
-      const rx=(x.results||[]).map(a=>({term:a.term,count:a.count})).sort((a,b)=>b.count-a.count).slice(0,30);
+      const rx=mergeTermCounts((x.results||[]).map(a=>({term:a.term,count:a.count}))).slice(0,30);
       const top10=rx.slice(0,10);
-      const rows=rx.map(r=>`<tr><td>${esc(r.term)}</td><td>${r.count.toLocaleString()}</td><td><button class="btn gray" style="padding:6px 11px;font-size:11.5px" onclick="useSignal(${esc(JSON.stringify(n))},${esc(JSON.stringify(r.term))})">Screen this pair</button></td></tr>`).join('');
+      const displayName=res.wildcard?n:res.name;
+      const rows=rx.map(r=>`<tr><td>${esc(r.term)}</td><td>${r.count.toLocaleString()}</td><td><button class="btn gray" style="padding:6px 11px;font-size:11.5px" onclick="useSignal(${esc(JSON.stringify(displayName))},${esc(JSON.stringify(r.term))})">Screen this pair</button></td></tr>`).join('');
       const sexCounts={Male:0,Female:0,Unknown:0};
       (sexX.results||[]).forEach(s=>{const label=fmtSex(s.term);sexCounts[label]=(sexCounts[label]||0)+s.count;});
       const sexData=['Male','Female','Unknown'].map(label=>({label,count:sexCounts[label]}));
 
       $('drugOut').innerHTML=`
+        ${matchNoteHtml(res,n)}
         <div class="chips"><span class="chip"><b>${reports.toLocaleString()}</b>&nbsp;total reports</span><span class="chip"><b>${rx.length}</b>&nbsp;distinct reactions (top 30 shown)</span></div>
         <h4>Top reported reactions</h4>
         <canvas id="reactChart" height="${Math.max(180,top10.length*28)}"></canvas>
@@ -726,8 +1245,8 @@ async function drugSearch(silent){
         <table><tr><th>Reaction term</th><th>Reports</th><th></th></tr>${rows||'<tr><td colspan=3>No reaction data found.</td></tr>'}</table>
         <p class="note">Reaction counts are report counts returned by openFDA — not incidence rates, and not adjusted for exposure.</p>
         <div class="actions">
-          <button class="btn ghost" onclick='exportDrugCSV(${esc(JSON.stringify(n))},${esc(JSON.stringify(rx))})'>Export CSV</button>
-          <button class="btn ghost" onclick="go('outcomes');$('outDrug').value=${esc(JSON.stringify(n))};outcomes()">Outcome severity →</button>
+          <button class="btn ghost" onclick='exportDrugCSV(${esc(JSON.stringify(displayName))},${esc(JSON.stringify(rx))})'>Export CSV</button>
+          <button class="btn ghost" onclick="go('outcomes');$('outDrug').value=${esc(JSON.stringify(displayName))};outcomes()">Outcome severity →</button>
         </div>`;
 
       if(reactionChart)reactionChart.destroy();
@@ -747,6 +1266,56 @@ async function drugSearch(silent){
 function exportDrugCSV(name,rx){csvDownload('pharmasafe_'+name.replace(/\W+/g,'_')+'_reactions.csv',[['reaction_term','report_count'],...rx.map(r=>[r.term,r.count])]);}
 function useSignal(d,r){$('sigDrug').value=d;$('sigRx').value=r;go('signal');signal()}
 
+/* ---------- reaction / MedDRA PT search (mirror of drug analysis, reversed) ---------- */
+let rxDrugChart;
+async function reactionSearch(silent){
+  await withBtn('rxBtn',async()=>{
+    const n=silent?state.rxsearch.name:$('rxName').value.trim();
+    if(!n)return needInput('rxOut','Enter a reaction, symptom, or MedDRA PT to analyze.');
+    if(!silent)$('rxOut').innerHTML=skeleton(5);
+    try{
+      const res=await resolveReactionName(n);
+      const [reports,x,seriousCount]=await Promise.all([
+        Promise.resolve(res.count),
+        fda({search:res.query,count:'patient.drug.medicinalproduct.exact'}),
+        total(res.query+' AND serious:1')
+      ]);
+      const drugs=mergeTermCounts((x.results||[]).map(a=>({term:a.term,count:a.count}))).slice(0,30);
+      const top10=drugs.slice(0,10);
+      const displayName=res.wildcard?n:res.name;
+      const seriousPct=reports?(seriousCount/reports*100):0;
+      const rows=drugs.map(d=>`<tr><td>${esc(d.term)}</td><td>${d.count.toLocaleString()}</td><td><button class="btn gray" style="padding:6px 11px;font-size:11.5px" onclick="useSignal(${esc(JSON.stringify(d.term))},${esc(JSON.stringify(displayName))})">Screen this pair</button></td></tr>`).join('');
+
+      $('rxOut').innerHTML=`
+        ${matchNoteHtml(res,n)}
+        <div class="chips">
+          <span class="chip"><b>${reports.toLocaleString()}</b>&nbsp;total reports</span>
+          <span class="chip"><b>${drugs.length}</b>&nbsp;distinct drugs (top 30 shown)</span>
+          <span class="chip"><b>${seriousPct.toFixed(1)}%</b>&nbsp;flagged serious</span>
+        </div>
+        <h4>Top implicated drugs</h4>
+        <canvas id="rxDrugChart" height="${Math.max(180,top10.length*28)}"></canvas>
+        <h4>All matched drugs</h4>
+        <table><tr><th>Drug (medicinal product)</th><th>Reports</th><th></th></tr>${rows||'<tr><td colspan=3>No drug data found.</td></tr>'}</table>
+        <p class="note">Drug counts are report counts returned by openFDA for this reaction term — not incidence rates, and not adjusted for how often each drug is prescribed.</p>
+        <div class="actions">
+          <button class="btn ghost" onclick='exportReactionCSV(${esc(JSON.stringify(displayName))},${esc(JSON.stringify(drugs))})'>Export CSV</button>
+          <button class="btn ghost" onclick="go('drug');$('drugName').value=${esc(JSON.stringify(top10[0]?.term||''))};drugSearch()" ${top10.length?'':'disabled'}>Analyze top drug →</button>
+        </div>`;
+
+      if(rxDrugChart)rxDrugChart.destroy();
+      rxDrugChart=new Chart($('rxDrugChart'),{type:'bar',data:{labels:top10.map(d=>d.term),datasets:[{data:top10.map(d=>d.count),backgroundColor:PAL[1],borderRadius:4}]},
+        options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
+      state.rxsearch={loaded:true,name:n};
+      if(silent)flashUpdated('rxOut');
+    }catch(e){
+      if(silent)console.warn('auto-refresh (rxsearch) failed:',e.message);
+      else $('rxOut').innerHTML=errHTML(e);
+    }
+  },silent);
+}
+function exportReactionCSV(name,drugs){csvDownload('pharmasafe_'+name.replace(/\W+/g,'_')+'_drugs.csv',[['drug','report_count'],...drugs.map(d=>[d.term,d.count])]);}
+
 /* ---------- compare ---------- */
 let cmpChartA,cmpChartB,cmpTotalsChart;
 async function compareDrugs(silent){
@@ -755,22 +1324,25 @@ async function compareDrugs(silent){
     if(!a||!b)return needInput('cmpOut','Enter both drug names to compare.');
     if(!silent)$('cmpOut').innerHTML=skeleton(5);
     try{
-      const [totA,totB,xA,xB]=await Promise.all([
-        total(dq(a)),total(dq(b)),
-        fda({search:dq(a),count:'patient.reaction.reactionmeddrapt.exact'}),
-        fda({search:dq(b),count:'patient.reaction.reactionmeddrapt.exact'})
+      const [resA,resB]=await Promise.all([resolveDrugName(a),resolveDrugName(b)]);
+      const [xA,xB]=await Promise.all([
+        fda({search:resA.query,count:'patient.reaction.reactionmeddrapt.exact'}),
+        fda({search:resB.query,count:'patient.reaction.reactionmeddrapt.exact'})
       ]);
-      const topA=(xA.results||[]).slice(0,6), topB=(xB.results||[]).slice(0,6);
+      const totA=resA.count, totB=resB.count;
+      const nameA=resA.wildcard?a:resA.name, nameB=resB.wildcard?b:resB.name;
+      const topA=mergeTermCounts(xA.results||[]).slice(0,6), topB=mergeTermCounts(xB.results||[]).slice(0,6);
       $('cmpOut').innerHTML=`
+        ${matchNoteHtml(resA,a)}${matchNoteHtml(resB,b)}
         <h4>Total reports</h4>
         <canvas id="cmpTotals" height="70"></canvas>
         <div class="row2" style="margin-top:22px">
-          <div><h4>${esc(a)} — top reactions</h4><canvas id="cmpChartA" height="180"></canvas></div>
-          <div><h4>${esc(b)} — top reactions</h4><canvas id="cmpChartB" height="180"></canvas></div>
+          <div><h4>${esc(nameA)} — top reactions</h4><canvas id="cmpChartA" height="180"></canvas></div>
+          <div><h4>${esc(nameB)} — top reactions</h4><canvas id="cmpChartB" height="180"></canvas></div>
         </div>
         <p class="note" style="margin-top:16px">Comparing raw report counts only — differences in overall prescribing volume between drugs are not controlled for, so a higher count does not by itself imply a higher rate.</p>`;
       if(cmpTotalsChart)cmpTotalsChart.destroy();
-      cmpTotalsChart=new Chart($('cmpTotals'),{type:'bar',data:{labels:[a,b],datasets:[{data:[totA,totB],backgroundColor:[PAL[0],PAL[1]],borderRadius:4}]},
+      cmpTotalsChart=new Chart($('cmpTotals'),{type:'bar',data:{labels:[nameA,nameB],datasets:[{data:[totA,totB],backgroundColor:[PAL[0],PAL[1]],borderRadius:4}]},
         options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
       if(cmpChartA)cmpChartA.destroy();
       cmpChartA=new Chart($('cmpChartA'),{type:'bar',data:{labels:topA.map(r=>r.term),datasets:[{data:topA.map(r=>r.count),backgroundColor:PAL[0],borderRadius:4}]},
@@ -795,12 +1367,15 @@ async function outcomes(silent){
     if(!n)return needInput('outOut','Enter a drug name to analyze.');
     if(!silent)$('outOut').innerHTML=skeleton(5);
     try{
+      const res=await resolveDrugName(n);
+      const displayName=res.wildcard?n:res.name;
       const fields=[['seriousnessdeath','Death'],['seriousnesshospitalization','Hospitalization'],['seriousnesslifethreatening','Life-threatening'],['seriousnessdisabling','Disabling'],['seriousnessother','Other serious']];
-      const totReports=await total(dq(n));
-      const counts=await Promise.all(fields.map(([f])=>total(dq(n)+' AND '+f+':1')));
+      const totReports=res.count;
+      const counts=await Promise.all(fields.map(([f])=>total(res.query+' AND '+f+':1')));
       const data=fields.map(([f,label],i)=>({label,count:counts[i],pct:totReports?counts[i]/totReports*100:0}));
       $('outOut').innerHTML=`
-        <div class="chips"><span class="chip"><b>${totReports.toLocaleString()}</b>&nbsp;total reports for ${esc(n)}</span></div>
+        ${matchNoteHtml(res,n)}
+        <div class="chips"><span class="chip"><b>${totReports.toLocaleString()}</b>&nbsp;total reports for ${esc(displayName)}</span></div>
         <canvas id="outChart" height="200"></canvas>
         <table style="margin-top:16px"><tr><th>Outcome</th><th>Reports</th><th>% of total</th></tr>
           ${data.map(d=>`<tr><td>${esc(d.label)}</td><td>${d.count.toLocaleString()}</td><td>${d.pct.toFixed(1)}%</td></tr>`).join('')}
@@ -842,13 +1417,16 @@ async function signal(silent){
     if(!drug||!rx)return needInput('sigOut','Enter both a drug and a reaction term.');
     if(!silent)$('sigOut').innerHTML=skeleton(4);
     try{
-      const [alln,dn,rn,a]=await Promise.all([total(),total(dq(drug)),total(rq(rx)),total(dq(drug)+' AND '+rq(rx))]);
+      const res=await resolveDrugName(drug);
+      const displayDrug=res.wildcard?drug:res.name;
+      const [alln,dn,rn,a]=await Promise.all([total(),Promise.resolve(res.count),total(rq(rx)),total(res.query+' AND '+rq(rx))]);
       const b2=Math.max(dn-a,0), c=Math.max(rn-a,0), d=Math.max(alln-a-b2-c,0);
       const [r,lo,hi]=ci(a,b2,c,d), p=prr(a,b2,c,d);
       const flag=(a>=3 && r>2 && lo>1);
       const badge=flag?'<span class="badge red">⬤ Potential statistical signal</span>':'<span class="badge">⬤ Not flagged by research screen</span>';
       $('sigOut').innerHTML=`<div class="card" style="margin-top:18px">
-        <h3>${esc(drug)} → ${esc(rx)}</h3>
+        ${matchNoteHtml(res,drug)}
+        <h3>${esc(displayDrug)} → ${esc(rx)}</h3>
         ${badge}
         <div class="forest">${forestPlotSVG(r,lo,hi,flag)}</div>
         <div class="forest-legend"><span><i style="background:${flag?'var(--signal)':'var(--accent)'}"></i>Point estimate (ROR)</span><span>Whiskers = 95% confidence interval</span><span>Dashed line = ROR of 1 (no association)</span></div>
@@ -864,7 +1442,7 @@ async function signal(silent){
           <span class="chip">PRR&nbsp;<b>${p.toFixed(2)}</b></span>
         </div>
         <p class="note" style="margin-top:14px"><b>Research screen:</b> a ≥ 3, ROR &gt; 2 and lower 95% CI &gt; 1. This is a project-defined screening rule, not an FDA regulatory threshold. A disproportionality signal is not proof of causality.</p>
-        <button class="btn gray" id="labelBtn" onclick="label(${esc(JSON.stringify(drug))})">Check FDA label evidence</button>
+        <button class="btn gray" id="labelBtn" onclick="label(${esc(JSON.stringify(displayDrug))})">Check FDA label evidence</button>
         <div id="labelOut"></div>
       </div>`;
       state.signal={loaded:true,drug,rx};
@@ -888,6 +1466,7 @@ async function labelLookup(name){
   const candidates=[name];
   const lower=name.toLowerCase().trim();
   if(NAME_ALIASES[lower])candidates.push(NAME_ALIASES[lower]);
+  drugSynonyms(name).forEach(s=>{if(!candidates.includes(s))candidates.push(s);});
   const fields=['openfda.generic_name','openfda.substance_name','openfda.brand_name'];
   for(const cand of candidates){
     for(const field of fields){
@@ -958,8 +1537,10 @@ async function trend(silent){
     if(!n)return needInput('trendMsg','Enter a drug name to load its trend.');
     if(!silent)$('trendMsg').innerHTML=skeleton(1);
     try{
-      const x=await fda({search:dq(n),count:'receivedate'});
-      $('trendMsg').innerHTML='';
+      const res=await resolveDrugName(n);
+      const displayName=res.wildcard?n:res.name;
+      const x=await fda({search:res.query,count:'receivedate'});
+      $('trendMsg').innerHTML=matchNoteHtml(res,n);
       const raw=(x.results||[]).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
       const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       const monthly={};
@@ -973,7 +1554,7 @@ async function trend(silent){
       const labels=keys.map(k=>`${MONTHS[Number(k.slice(4,6))-1]} ${k.slice(0,4)}`);
       const counts=keys.map(k=>monthly[k]);
       if(chart)chart.destroy();
-      chart=new Chart($('trendChart'),{type:'line',data:{labels,datasets:[{label:'FDA reports for '+n+' (by month)',data:counts,borderColor:PAL[0],backgroundColor:PAL[0]+'22',fill:true,tension:.15,pointRadius:0}]},
+      chart=new Chart($('trendChart'),{type:'line',data:{labels,datasets:[{label:'FDA reports for '+displayName+' (by month)',data:counts,borderColor:PAL[0],backgroundColor:PAL[0]+'22',fill:true,tension:.15,pointRadius:0}]},
         options:{plugins:{tooltip:{callbacks:{title:items=>items[0]?.label||''}}},
           scales:{x:{type:'category',grid:{display:false},ticks:{maxTicksLimit:12,autoSkip:true}},y:{beginAtZero:true,title:{display:true,text:'Reports'},grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}}}}});
       state.trend={loaded:true,name:n};
@@ -995,8 +1576,8 @@ async function leaderboard(silent){
         fda({count:'patient.drug.medicinalproduct.exact'}),
         fda({count:'patient.reaction.reactionmeddrapt.exact'})
       ]);
-      const topDrugs=(drugsX.results||[]).slice(0,12);
-      const topRx=(rxX.results||[]).slice(0,12);
+      const topDrugs=mergeTermCounts(drugsX.results||[]).slice(0,12);
+      const topRx=mergeTermCounts(rxX.results||[]).slice(0,12);
       const maxD=Math.max(...topDrugs.map(d=>d.count),1);
       const maxR=Math.max(...topRx.map(d=>d.count),1);
       const rowsHtml=(items,max)=>items.map((it,i)=>`<div class="leaderrow"><span class="rank">${String(i+1).padStart(2,'0')}</span><span class="name">${esc(it.term)}</span><span class="bar" style="width:${Math.max(6,it.count/max*90)}px"></span><span class="val">${it.count.toLocaleString()}</span></div>`).join('');
