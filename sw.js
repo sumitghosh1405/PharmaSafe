@@ -1,4 +1,4 @@
-const CACHE = 'pharmasafe-shell-v2';
+const CACHE = 'pharmasafe-shell-v1';
 const SHELL = [
   './index.html',
   './manifest.json',
@@ -24,22 +24,7 @@ self.addEventListener('fetch', e => {
   if (url.includes('api.fda.gov') || url.includes('allorigins') || url.includes('corsproxy') || url.includes('codetabs')) {
     return; // let the browser handle it normally
   }
-  // HTML / navigation requests: network-first, so code updates always reach the browser.
-  // Falls back to the cached shell only when offline.
-  const isHTML = e.request.mode === 'navigate' || url.endsWith('/index.html') || url.endsWith('/');
-  if (isHTML) {
-    e.respondWith(
-      fetch(e.request).then(res => {
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, copy));
-        }
-        return res;
-      }).catch(() => caches.match(e.request))
-    );
-    return;
-  }
-  // Static assets (icons, manifest): cache-first, falling back to network, so the UI opens instantly.
+  // App shell: cache-first, falling back to network, so the UI opens instantly (even offline).
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;

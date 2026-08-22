@@ -1,5 +1,6 @@
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <title>PharmaSafe — Pharmacovigilance Analytics</title>
 
 <!-- PWA: installable on Android + iOS home screens -->
@@ -348,8 +349,8 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       <button class="btn" type="submit" id="signupSubmitBtn">Create account</button>
     </form>
 
-    <p class="authnote">Accounts are created and stored securely by Netlify Identity — real accounts that work across devices, not just this browser.</p>
-    <p class="authnote" id="identityWarning" style="display:none;color:var(--signal)">⚠️ Netlify Identity isn't enabled for this site yet. In your Netlify dashboard, go to <b>Project configuration → Identity → Enable Identity</b>, then reload this page.</p>
+    <p class="authnote">Accounts are your own — created and stored securely, working across any device you log in on, not just this browser.</p>
+    <p class="authnote" id="identityWarning" style="display:none;color:var(--signal)">⚠️ Sign-in isn't configured yet. Add your Firebase project config in the <code>FIREBASE_CONFIG</code> object near the top of the script, then reload this page.</p>
     <button class="skiplink" onclick="hideAuthPrompt()">Skip for now — keep browsing</button>
   </div>
 </div>
@@ -1650,7 +1651,29 @@ async function doInstall(){
   if(isIOS && !already)$('iosInstall').classList.add('show');
 })();
 
-/* ---------- real auth via Netlify Identity (accounts stored & managed by Netlify) ---------- */
+/* ---------- your own auth, powered by Firebase Authentication ----------
+   This is a real account system you control end-to-end: you create the
+   free Firebase project, Firebase securely stores and verifies passwords
+   (nothing here ever sees or handles raw credentials itself), and every
+   pixel of the login/signup UI above is fully custom, not a Firebase widget.
+
+   SETUP (one-time, ~3 minutes):
+   1. Go to https://console.firebase.google.com → Add project (free tier).
+   2. In the project: Build → Authentication → Get started → enable
+      "Email/Password" as a sign-in method.
+   3. Project settings (gear icon) → General → "Your apps" → Add app → Web.
+      Copy the config object it gives you into FIREBASE_CONFIG below.
+   Until you do this, the app still works fully for anonymous browsing —
+   sign-in will just show a setup notice instead of a form. */
+const FIREBASE_CONFIG={
+  apiKey:"YOUR_API_KEY",
+  authDomain:"YOUR_PROJECT.firebaseapp.com",
+  projectId:"YOUR_PROJECT_ID",
+  appId:"YOUR_APP_ID"
+};
+const firebaseReady = FIREBASE_CONFIG.apiKey!=='YOUR_API_KEY' && window.firebase;
+if(firebaseReady)firebase.initializeApp(FIREBASE_CONFIG);
+
 let currentUser=null;
 
 function switchAuthTab(tab){
@@ -1682,6 +1705,16 @@ function hideAuthPrompt(){
   setTimeout(()=>{ if(!m.classList.contains('show'))m.style.display='none'; },220);
 }
 
+function friendlyAuthError(err){
+  const code=err&&err.code||'';
+  if(code.includes('email-already-in-use'))return 'An account with this email already exists — try logging in instead.';
+  if(code.includes('weak-password'))return 'Password is too weak — use at least 6 characters.';
+  if(code.includes('invalid-email'))return 'That email address doesn\'t look valid.';
+  if(code.includes('user-not-found')||code.includes('wrong-password')||code.includes('invalid-credential'))return 'Incorrect email or password.';
+  if(code.includes('too-many-requests'))return 'Too many attempts — please wait a moment and try again.';
+  return err&&err.message||'Something went wrong. Please try again.';
+}
+
 async function handleSignup(e){
   e.preventDefault();
   const name=$('signupName').value.trim();
@@ -1689,30 +1722,22 @@ async function handleSignup(e){
   const pw=$('signupPassword').value;
   const errEl=$('signupErr');
   errEl.classList.remove('show');
-  if(!window.netlifyIdentity || !netlifyIdentity.gotrue){
-    errEl.textContent='Netlify Identity is not enabled for this site yet.';
+  if(!firebaseReady){
+    errEl.style.color='var(--signal)';
+    errEl.textContent='Sign-in isn\'t configured yet — see FIREBASE_CONFIG setup notes in the code.';
     errEl.classList.add('show');
     return false;
   }
   authBusy('signupSubmitBtn',true,'Create account');
   try{
-    await netlifyIdentity.gotrue.signup(email,pw,{full_name:name});
-    // Some Netlify Identity setups require email confirmation before login works.
-    try{
-      const user=await netlifyIdentity.gotrue.login(email,pw,true); // remember=true → session persists for future visits
-      netlifyIdentity._user=user;
-      enterApp(user);
-      hideAuthPrompt();
-    }catch(loginErr){
-      errEl.textContent='Account created! Check your email to confirm your address, then log in below.';
-      errEl.style.color='var(--ok)';
-      errEl.classList.add('show');
-      switchAuthTab('login');
-      $('loginEmail').value=email;
-    }
+    await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+    const cred=await firebase.auth().createUserWithEmailAndPassword(email,pw);
+    if(name)await cred.user.updateProfile({displayName:name});
+    enterApp(cred.user);
+    hideAuthPrompt();
   }catch(err){
     errEl.style.color='var(--signal)';
-    errEl.textContent=err.message&&err.message.includes('already')?'An account with this email already exists — try logging in instead.':(err.message||'Sign-up failed. Please try again.');
+    errEl.textContent=friendlyAuthError(err);
     errEl.classList.add('show');
   }finally{
     authBusy('signupSubmitBtn',false,'Create account');
@@ -1726,19 +1751,20 @@ async function handleLogin(e){
   const pw=$('loginPassword').value;
   const errEl=$('loginErr');
   errEl.classList.remove('show');
-  if(!window.netlifyIdentity || !netlifyIdentity.gotrue){
-    errEl.textContent='Netlify Identity is not enabled for this site yet.';
+  if(!firebaseReady){
+    errEl.style.color='var(--signal)';
+    errEl.textContent='Sign-in isn\'t configured yet — see FIREBASE_CONFIG setup notes in the code.';
     errEl.classList.add('show');
     return false;
   }
   authBusy('loginSubmitBtn',true,'Log in');
   try{
-    const user=await netlifyIdentity.gotrue.login(email,pw,true); // remember=true → stay logged in on future visits
-    netlifyIdentity._user=user;
-    enterApp(user);
+    await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL); // stay logged in on future visits
+    const cred=await firebase.auth().signInWithEmailAndPassword(email,pw);
+    enterApp(cred.user);
     hideAuthPrompt();
   }catch(err){
-    errEl.textContent=/confirm/i.test(err.message||'')?'Please confirm your email address first — check your inbox for the confirmation link.':'Incorrect email or password.';
+    errEl.textContent=friendlyAuthError(err);
     errEl.classList.add('show');
   }finally{
     authBusy('loginSubmitBtn',false,'Log in');
@@ -1750,17 +1776,13 @@ function handleLogout(){
   const pill=$('userPill');
   if(pill){pill.style.pointerEvents='none';pill.style.opacity='.55';}
   if($('userPillName'))$('userPillName').textContent='Logging out…';
-  if(!window.netlifyIdentity){location.reload();return;}
-  try{
-    Promise.resolve(netlifyIdentity.logout()).catch(()=>{}).finally(()=>location.reload());
-  }catch(e){
-    location.reload();
-  }
+  if(!firebaseReady){location.reload();return;}
+  firebase.auth().signOut().catch(()=>{}).finally(()=>location.reload());
 }
 
 function enterApp(user){
   currentUser=user;
-  const name=user.user_metadata?.full_name || user.email;
+  const name=user.displayName || user.email;
   $('userPillName').textContent=name;
   $('userPill').style.display='flex';
   $('loginLink').style.display='none';
@@ -1784,13 +1806,10 @@ function trackToolUse(){
   }
 }
 
-if(window.netlifyIdentity){
-  netlifyIdentity.on('init',user=>{ if(user)enterApp(user); });
-  netlifyIdentity.on('logout',()=>{ location.reload(); });
-  netlifyIdentity.on('error',err=>{ console.error('Netlify Identity error:',err); });
-  netlifyIdentity.init();
+if(firebaseReady){
+  firebase.auth().onAuthStateChanged(user=>{ if(user)enterApp(user); });
 }else{
-  // Widget script failed to load or Identity isn't enabled for this site yet.
+  // FIREBASE_CONFIG still has placeholder values — surface the setup notice.
   $('identityWarning').style.display='block';
 }
 
