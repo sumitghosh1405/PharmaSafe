@@ -1542,10 +1542,29 @@ async function label(d){
 }
 
 /* ---------- ROR/PRR calculation modal ---------- */
+/* Adaptive-precision formatter: fixed-decimal formatting silently rounds tiny
+   fractions (common here, since the "background" cell is often in the tens
+   of millions) down to a misleading "0.0000000". This shows real significant
+   figures always, switching to ×10ⁿ notation only when a value is genuinely
+   too small/large for plain decimal to stay accurate and readable. */
+function fmtSig(x,sig){
+  sig=sig||6;
+  if(!isFinite(x))return String(x);
+  if(x===0)return '0';
+  const abs=Math.abs(x);
+  if(abs<1e-6||abs>=1e15){
+    const s=x.toExponential(Math.max(0,sig-1));
+    const [mant,exp]=s.split('e');
+    const sup={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','+':''};
+    return `${mant}×10${exp.split('').map(ch=>sup[ch]!==undefined?sup[ch]:ch).join('')}`;
+  }
+  return Number(x.toPrecision(sig)).toLocaleString('en-US',{maximumFractionDigits:20});
+}
 function openCalcModal(type){
   if(!lastSignalCalc)return;
   const c=lastSignalCalc;
   const A=c.a+0.5, B=c.b+0.5, C=c.c+0.5, D=c.d+0.5; // Haldane–Anscombe continuity correction
+  const fA=A.toLocaleString('en-US'), fB=B.toLocaleString('en-US'), fC=C.toLocaleString('en-US'), fD=D.toLocaleString('en-US');
   let html='';
   if(type==='ror'){
     const se=Math.sqrt(1/A+1/B+1/C+1/D);
@@ -1556,41 +1575,42 @@ function openCalcModal(type){
       <div class="calc-step">
         <div class="lbl">1 · Continuity correction</div>
         <div class="expr">Each cell gets <b>+0.5</b> so the ratio is defined even when a count is zero (Haldane–Anscombe correction):<br>
-        a=${c.a}<span class="eq">→</span>${A} &nbsp;·&nbsp; b=${c.b}<span class="eq">→</span>${B} &nbsp;·&nbsp; c=${c.c}<span class="eq">→</span>${C} &nbsp;·&nbsp; d=${c.d}<span class="eq">→</span>${D}</div>
+        a=${c.a}<span class="eq">→</span>${fA} &nbsp;·&nbsp; b=${c.b.toLocaleString()}<span class="eq">→</span>${fB} &nbsp;·&nbsp; c=${c.c.toLocaleString()}<span class="eq">→</span>${fC} &nbsp;·&nbsp; d=${c.d.toLocaleString()}<span class="eq">→</span>${fD}</div>
       </div>
 
       <div class="calc-step">
         <div class="lbl">2 · Odds ratio</div>
         <div class="expr">ROR <span class="eq">=</span> (a×d) / (b×c)<br>
-        <span class="eq">=</span> (${A} × ${D}) / (${B} × ${C})<br>
-        <span class="eq">=</span> ${(A*D).toFixed(2)} / ${(B*C).toFixed(2)}<br>
-        <span class="eq">=</span> <b>${c.r.toFixed(4)}</b></div>
+        <span class="eq">=</span> (${fA} × ${fD}) / (${fB} × ${fC})<br>
+        <span class="eq">=</span> ${fmtSig(A*D,10)} / ${fmtSig(B*C,10)}<br>
+        <span class="eq">=</span> <b>${fmtSig(c.r,8)}</b></div>
       </div>
 
       <div class="calc-step">
         <div class="lbl">3 · Standard error (log scale)</div>
         <div class="expr">SE <span class="eq">=</span> √(1/a + 1/b + 1/c + 1/d)<br>
-        <span class="eq">=</span> √(${(1/A).toFixed(4)} + ${(1/B).toFixed(5)} + ${(1/C).toFixed(5)} + ${(1/D).toFixed(7)})<br>
-        <span class="eq">=</span> <b>${se.toFixed(4)}</b></div>
+        <span class="eq">=</span> √(${fmtSig(1/A)} + ${fmtSig(1/B)} + ${fmtSig(1/C)} + ${fmtSig(1/D)})<br>
+        <span class="eq">=</span> <b>${fmtSig(se,8)}</b></div>
       </div>
 
       <div class="calc-step">
         <div class="lbl">4 · 95% confidence interval</div>
-        <div class="expr">Lower <span class="eq">=</span> exp(ln(${c.r.toFixed(2)}) − 1.96×${se.toFixed(3)}) <span class="eq">=</span> <b>${c.lo.toFixed(4)}</b><br>
-        Upper <span class="eq">=</span> exp(ln(${c.r.toFixed(2)}) + 1.96×${se.toFixed(3)}) <span class="eq">=</span> <b>${c.hi.toFixed(4)}</b></div>
+        <div class="expr">Lower <span class="eq">=</span> exp(ln(${fmtSig(c.r)}) − 1.96×${fmtSig(se)}) <span class="eq">=</span> <b>${fmtSig(c.lo,8)}</b><br>
+        Upper <span class="eq">=</span> exp(ln(${fmtSig(c.r)}) + 1.96×${fmtSig(se)}) <span class="eq">=</span> <b>${fmtSig(c.hi,8)}</b></div>
       </div>
 
       <div class="calc-result">
         <div class="num">${c.r.toFixed(2)}</div>
-        <div class="lbl2">ROR, 95% CI ${c.lo.toFixed(2)}–${c.hi.toFixed(2)}</div>
+        <div class="lbl2">ROR, 95% CI ${c.lo.toFixed(2)}–${c.hi.toFixed(2)}<br><span style="font-family:var(--mono);font-size:11px">exact: ROR=${fmtSig(c.r,8)} · CI ${fmtSig(c.lo,8)}–${fmtSig(c.hi,8)}</span></div>
       </div>
 
       <ul class="readpoints">
-        <li><span class="ic info">i</span><span><b>What it means:</b> reports pairing ${esc(c.drug)} with ${esc(c.rx)} are ${c.r>=1?`${c.r.toFixed(1)}× more`:`${(1/c.r).toFixed(1)}× less`} common, relative to how often that reaction shows up with every other drug in FAERS.</span></li>
+        <li><span class="ic info">i</span><span><b>What it means:</b> reports pairing ${esc(c.drug)} with ${esc(c.rx)} are ${c.r>=1?`${fmtSig(c.r,3)}× more`:`${fmtSig(1/c.r,3)}× less`} common, relative to how often that reaction shows up with every other drug in FAERS.</span></li>
         <li><span class="ic ${c.lo>1?'warn':'ok'}">${c.lo>1?'!':'✓'}</span><span><b>CI crosses 1?</b> ${c.lo>1?'No — the entire interval sits above 1, so chance alone is a less likely explanation.':'Yes — the interval includes 1, so this could plausibly be no real association at all.'}</span></li>
         <li><span class="ic ${c.a>=3?'ok':'warn'}">${c.a>=3?'✓':'!'}</span><span><b>Report volume (a=${c.a}):</b> ${c.a>=3?'meets the minimum count this screen requires to be interpretable.':'below the minimum of 3 — with this few reports, the ratio can swing wildly and should not be trusted numerically, even though it is shown above.'}</span></li>
       </ul>`;
   }else{
+    const pA=A/(A+B), pC=C/(C+D);
     html=`
       <div class="calc-eyebrow">Proportional Reporting Ratio</div>
       <div class="calc-title">${esc(c.drug)} → ${esc(c.rx)}</div>
@@ -1598,35 +1618,35 @@ function openCalcModal(type){
       <div class="calc-step">
         <div class="lbl">1 · Continuity correction</div>
         <div class="expr">Same +0.5 correction as ROR, applied to every cell:<br>
-        a=${c.a}<span class="eq">→</span>${A} &nbsp;·&nbsp; b=${c.b}<span class="eq">→</span>${B} &nbsp;·&nbsp; c=${c.c}<span class="eq">→</span>${C} &nbsp;·&nbsp; d=${c.d}<span class="eq">→</span>${D}</div>
+        a=${c.a}<span class="eq">→</span>${fA} &nbsp;·&nbsp; b=${c.b.toLocaleString()}<span class="eq">→</span>${fB} &nbsp;·&nbsp; c=${c.c.toLocaleString()}<span class="eq">→</span>${fC} &nbsp;·&nbsp; d=${c.d.toLocaleString()}<span class="eq">→</span>${fD}</div>
       </div>
 
       <div class="calc-step">
         <div class="lbl">2 · Proportion within this drug</div>
-        <div class="expr">a / (a+b) <span class="eq">=</span> ${A} / (${A}+${B}) <span class="eq">=</span> ${A} / ${(A+B).toFixed(1)} <span class="eq">=</span> <b>${(A/(A+B)).toFixed(5)}</b></div>
+        <div class="expr">a / (a+b) <span class="eq">=</span> ${fA} / ${fmtSig(A+B,10)} <span class="eq">=</span> <b>${fmtSig(pA,8)}</b></div>
         <div class="expr" style="margin-top:6px;color:var(--muted);font-size:12.5px">Share of ${esc(c.drug)}'s reports that mention ${esc(c.rx)}.</div>
       </div>
 
       <div class="calc-step">
         <div class="lbl">3 · Proportion in all other drugs</div>
-        <div class="expr">c / (c+d) <span class="eq">=</span> ${C} / (${C}+${D}) <span class="eq">=</span> ${C} / ${(C+D).toFixed(1)} <span class="eq">=</span> <b>${(C/(C+D)).toFixed(7)}</b></div>
+        <div class="expr">c / (c+d) <span class="eq">=</span> ${fC} / ${fmtSig(C+D,10)} <span class="eq">=</span> <b>${fmtSig(pC,8)}</b></div>
         <div class="expr" style="margin-top:6px;color:var(--muted);font-size:12.5px">Share of every other drug's reports that mention ${esc(c.rx)} — the background rate.</div>
       </div>
 
       <div class="calc-step">
         <div class="lbl">4 · Ratio</div>
         <div class="expr">PRR <span class="eq">=</span> [a/(a+b)] / [c/(c+d)]<br>
-        <span class="eq">=</span> ${(A/(A+B)).toFixed(5)} / ${(C/(C+D)).toFixed(7)}<br>
-        <span class="eq">=</span> <b>${c.p.toFixed(4)}</b></div>
+        <span class="eq">=</span> ${fmtSig(pA,8)} / ${fmtSig(pC,8)}<br>
+        <span class="eq">=</span> <b>${fmtSig(c.p,8)}</b></div>
       </div>
 
       <div class="calc-result">
         <div class="num">${c.p.toFixed(2)}</div>
-        <div class="lbl2">PRR</div>
+        <div class="lbl2">PRR<br><span style="font-family:var(--mono);font-size:11px">exact: PRR=${fmtSig(c.p,8)}</span></div>
       </div>
 
       <ul class="readpoints">
-        <li><span class="ic info">i</span><span><b>What it means:</b> ${esc(c.rx)} shows up in ${esc(c.drug)}'s reports at ${c.p.toFixed(1)}× the rate it shows up in reports for every other drug combined.</span></li>
+        <li><span class="ic info">i</span><span><b>What it means:</b> ${esc(c.rx)} shows up in ${esc(c.drug)}'s reports at ${fmtSig(c.p,3)}× the rate it shows up in reports for every other drug combined.</span></li>
         <li><span class="ic info">i</span><span><b>vs. ROR:</b> PRR and ROR use different math but tend to agree closely for rare reactions — that's why yours came out nearly identical here.</span></li>
         <li><span class="ic ${c.a>=3?'ok':'warn'}">${c.a>=3?'✓':'!'}</span><span><b>Traditional PRR threshold</b> (from UK MHRA practice) is often PRR≥2, χ²≥4, a≥3 — similar spirit to this screen's rule, but not identical.</span></li>
       </ul>`;
