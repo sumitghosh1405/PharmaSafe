@@ -266,6 +266,24 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(
 .screenrule .rule .cond{font-family:var(--mono);font-size:12.5px;color:var(--ink-soft)}
 .screenrule .rule .pass{color:var(--ok);font-weight:700;font-size:12px}
 .screenrule .rule .fail{color:var(--signal);font-weight:700;font-size:12px}
+
+/* ---------- Phase 2: search-normalization transparency block ---------- */
+.normblock{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:-6px 0 14px;display:flex;flex-direction:column;gap:6px}
+.normrow{display:flex;gap:10px;font-size:12.5px;line-height:1.5}
+.normlbl{flex:none;width:150px;color:var(--muted);font-weight:600;font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-top:1px}
+.normval{color:var(--ink-soft);font-family:var(--mono);word-break:break-word}
+.normrevert{margin-top:4px;font-size:12px;color:var(--accent-dark);text-decoration:underline;width:fit-content}
+
+/* ---------- Phase 2: Method & Data expandable panel ---------- */
+.methodpanel{margin:16px 0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel)}
+.methodpanel summary{cursor:pointer;padding:11px 16px;font-size:12.5px;font-weight:600;color:var(--accent-dark);list-style:none;user-select:none;display:flex;align-items:center;background:var(--panel-2)}
+.methodpanel summary::-webkit-details-marker{display:none}
+.methodpanel[open] summary{border-bottom:1px solid var(--line)}
+.methodbody{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.methodrow{display:flex;flex-direction:column;gap:3px}
+.mlbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+.mval{font-size:12.5px;color:var(--ink-soft);font-family:var(--mono);line-height:1.55;word-break:break-word}
+.mval.prose{font-family:var(--sans)}
 .skiplink{all:unset;display:block;text-align:center;margin-top:16px;font-size:12.5px;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .skiplink:hover{color:var(--ink)}
 .authbrand{font-family:var(--serif);font-weight:600;font-size:24px;text-align:center;margin-bottom:2px}
@@ -546,6 +564,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
           <button class="btn" id="trendBtn" onclick="trend()">Load trend</button>
           <div id="trendMsg"></div>
           <canvas id="trendChart" style="margin-top:18px"></canvas>
+          <div id="trendMethod"></div>
         </div>
       </section>
 
@@ -563,8 +582,8 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
 
       <section id="leaderboard">
         <p class="eyebrow"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="15" width="4" height="6" rx="1"/></svg>09 · Leaderboard</p>
-        <h2>Most reported drugs &amp; reactions</h2>
-        <p class="lede">The highest-volume medicinal products and reaction terms across the entire public FAERS index — a snapshot of what's being reported most right now.</p>
+        <h2>Top terms by openFDA aggregation</h2>
+        <p class="lede">The highest-count raw text strings returned by openFDA's own frequency aggregation across the entire public FAERS index — not an independently-verified ranking.</p>
         <div class="card">
           <button class="btn" id="leadBtn" onclick="leaderboard()">Load leaderboard</button>
           <div id="leadOut"></div>
@@ -613,19 +632,37 @@ function go(x){
 }
 function esc(x){return String(x??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 
-/* ---------- de-duplication for grouped counts ----------
+/* ---------- de-duplication for grouped counts — AUDITED (see Phase 2 review) ----------
    openFDA's medicinalproduct/reactionmeddrapt fields are raw, as-submitted
-   text with no normalization, so "paroxetine", "Paroxetine", "paroxetine "
-   (trailing space), and "PAROXETINE." (trailing period — very common in
-   FAERS submissions) are all distinct buckets under the `.exact` count
-   aggregation even though they render as, or clearly mean, the same
-   real-world term. Left unmerged, a drug/reaction's true report volume
-   gets silently split across near-duplicate rows, which understates its
-   rank in every top-N list, chart, autocomplete suggestion, and the
-   leaderboard. cleanLabel() strips that noise for display; normKey() uses
-   the same cleanup to decide what counts as "the same" term so rows merge
-   (counts summed, most-reported original spelling kept as the label). */
-function cleanLabel(s){return String(s||'').replace(/\s+/g,' ').trim().replace(/[.,;:]+$/,'').trim();}
+   text with no normalization, so "paroxetine", "Paroxetine", and
+   "paroxetine " (trailing space) are all distinct buckets under the
+   `.exact` count aggregation even though they are unambiguously the same
+   term with only whitespace/casing noise. Left unmerged, a drug/reaction's
+   true report volume gets silently split across near-duplicate rows.
+
+   AUDIT FINDING (checked against openFDA's own published field reference
+   for this endpoint): patient.reaction only exposes reactionmeddrapt
+   (text), reactionmeddraversionpt (the MedDRA *dictionary version* used
+   for coding, not a per-term ID), and reactionoutcome. There is no
+   standardized numeric MedDRA code exposed for the reaction term itself
+   through this endpoint — so a code-based, collision-proof merge is not
+   possible here; string-level normalization is the only option this data
+   source supports. This is stated as NOT VERIFIED-by-code-alone beyond
+   what openFDA's own schema publishes; it is not a limitation this app
+   introduced.
+
+   DECISION: given that constraint, this merge is intentionally kept as
+   narrow as possible. It previously also stripped trailing punctuation
+   (".", ",", ";", ":") before comparing — removed in this revision,
+   because unlike whitespace/casing, trailing punctuation is not
+   guaranteed by MedDRA's term structure to always be pure noise, and two
+   distinct real terms differing only by trailing punctuation, however
+   unlikely, cannot be ruled out from this endpoint alone. Only
+   whitespace-collapsing and case-folding remain: two strings are treated
+   as "the same term" only if they are identical once extra spaces are
+   trimmed/collapsed and case is ignored — a transformation that cannot
+   change which distinct clinical term a string represents. */
+function cleanLabel(s){return String(s||'').replace(/\s+/g,' ').trim();}
 function normKey(s){return cleanLabel(s).toLowerCase();}
 function mergeTermCounts(results){
   const map=new Map();
@@ -874,10 +911,14 @@ async function resolveDrugName(original){
     return c>0?{name:candidate,count:c}:null;
   }
 
-  // Layer 1: exact term, then the fast local dictionary (no network round-trip).
-  for(const candidate of [original, ...drugSynonyms(original)]){
+  // Layer 1a: exact term as typed — no normalization, nothing to disclose.
+  const exactHit=await attempt(original);
+  if(exactHit)return {name:exactHit.name, query:dq(exactHit.name), matched:false, method:'exact', tried, count:exactHit.count};
+
+  // Layer 1b: local hand-curated synonym dictionary (same-substance alternate names).
+  for(const candidate of drugSynonyms(original)){
     const hit=await attempt(candidate);
-    if(hit)return {name:hit.name, query:dq(hit.name), matched:hit.name.toLowerCase()!==original.toLowerCase(), tried, count:hit.count};
+    if(hit)return {name:hit.name, query:dq(hit.name), matched:true, method:'local_synonym', tried, count:hit.count};
   }
 
   // Layer 2: RxNorm normalized search — catches synonyms/brand-generic across
@@ -885,19 +926,21 @@ async function resolveDrugName(original){
   const normalized=await rxnormNormalized(original);
   if(normalized){
     const hit=await attempt(normalized);
-    if(hit)return {name:hit.name, query:dq(hit.name), matched:true, tried, count:hit.count};
+    if(hit)return {name:hit.name, query:dq(hit.name), matched:true, method:'rxnorm_normalized', tried, count:hit.count};
   }
 
   // Layer 3: RxNorm approximate/fuzzy search — corrects typos and missing
-  // words against the same full corpus.
+  // words against the same full corpus. This is a suggested closest match,
+  // not a confirmed equivalence, and is labeled as such to the user.
   const approx=await rxnormApproximate(original);
   for(const candidate of approx){
     const hit=await attempt(candidate);
-    if(hit)return {name:hit.name, query:dq(hit.name), matched:true, tried, count:hit.count};
+    if(hit)return {name:hit.name, query:dq(hit.name), matched:true, method:'rxnorm_approximate', tried, count:hit.count};
   }
 
   // Layer 4: last-resort local wildcard for missing/extra trailing letters —
-  // confirmed-safe `*` operator, unquoted, single word only.
+  // confirmed-safe `*` operator, unquoted, single word only. Explicitly not
+  // an equivalence claim — a raw prefix match that may include unrelated terms.
   const single=original.trim();
   if(single && !single.includes(' ') && single.length>=4){
     for(const cut of [1,2]){
@@ -906,17 +949,17 @@ async function resolveDrugName(original){
       const wq='patient.drug.medicinalproduct:'+stem+'*';
       tried.push(stem+'*');
       const c=await total(wq);
-      if(c>0)return {name:stem+'*', query:wq, matched:true, wildcard:true, tried, count:c};
+      if(c>0)return {name:stem+'*', query:wq, matched:true, wildcard:true, method:'wildcard', tried, count:c};
     }
   }
-  return {name:original, query:dq(original), matched:false, tried, count:0};
+  return {name:original, query:dq(original), matched:false, method:'exact', tried, count:0};
 }
 
 /** Same shape/contract as resolveDrugName, for reaction/MedDRA PT terms:
  * tries the term as typed, then the local lay-term↔PT dictionary, then the
  * NLM Clinical Table conditions service as a broad normalization layer,
  * then a trailing-wildcard retry. Returns {name, query, matched, wildcard,
- * tried, count}. */
+ * method, tried, count}. */
 async function resolveReactionName(original){
   const tried=[];
   const seen=new Set();
@@ -929,18 +972,23 @@ async function resolveReactionName(original){
     return c>0?{name:candidate,count:c}:null;
   }
 
-  // Layer 1: exact term, then the fast local lay-term/spelling dictionary.
-  for(const candidate of [original, ...reactionSynonyms(original)]){
+  // Layer 1a: exact term as typed — no normalization, nothing to disclose.
+  const exactHit=await attempt(original);
+  if(exactHit)return {name:exactHit.name, query:rq(exactHit.name), matched:false, method:'exact', tried, count:exactHit.count};
+
+  // Layer 1b: local lay-term/spelling dictionary.
+  for(const candidate of reactionSynonyms(original)){
     const hit=await attempt(candidate);
-    if(hit)return {name:hit.name, query:rq(hit.name), matched:hit.name.toLowerCase()!==original.toLowerCase(), tried, count:hit.count};
+    if(hit)return {name:hit.name, query:rq(hit.name), matched:true, method:'local_synonym', tried, count:hit.count};
   }
 
   // Layer 2: NLM Clinical Table conditions search — catches plain-language
   // symptom descriptions the local dictionary doesn't have an entry for.
+  // This is a suggested clinical-term mapping, not a confirmed equivalence.
   const consumerMatches=await conditionsMatches(original);
   for(const candidate of consumerMatches){
     const hit=await attempt(candidate);
-    if(hit)return {name:hit.name, query:rq(hit.name), matched:true, tried, count:hit.count};
+    if(hit)return {name:hit.name, query:rq(hit.name), matched:true, method:'nlm_clinical_tables', tried, count:hit.count};
   }
 
   // Layer 3: last-resort local wildcard for missing/extra trailing letters.
@@ -952,16 +1000,72 @@ async function resolveReactionName(original){
       const wq='patient.reaction.reactionmeddrapt:'+stem+'*';
       tried.push(stem+'*');
       const c=await total(wq);
-      if(c>0)return {name:stem+'*', query:wq, matched:true, wildcard:true, tried, count:c};
+      if(c>0)return {name:stem+'*', query:wq, matched:true, wildcard:true, method:'wildcard', tried, count:c};
     }
   }
-  return {name:original, query:rq(original), matched:false, tried, count:0};
+  return {name:original, query:rq(original), matched:false, method:'exact', tried, count:0};
 }
-function matchNoteHtml(res,original){
+
+/* ---------- search-normalization transparency (Phase 2, item 1) ----------
+   Rule: never state or imply two terms are "the same" unless the specific
+   source used actually supports that. Local-dictionary and RxNorm-normalized
+   matches are presented as genuine equivalences (both are curated/authority
+   sources for drug naming). RxNorm-approximate and NLM Clinical Table
+   matches are presented only as "closest candidate" / "suggested mapping" —
+   not confirmed equivalence. Wildcard matches are presented only as a raw
+   prefix search with no equivalence claim at all. */
+const NORMALIZATION_LABELS={
+  local_synonym:'Local synonym dictionary',
+  rxnorm_normalized:'RxNorm — normalized match',
+  rxnorm_approximate:'RxNorm — approximate/fuzzy match',
+  nlm_clinical_tables:'NLM Clinical Table Search',
+  wildcard:'Wildcard (prefix) search'
+};
+const NORMALIZATION_REASONS={
+  local_synonym:'This is a known alternate name for the same substance (for example, an international non-proprietary name vs. the US adopted name), from a hand-curated reference list built into this app.',
+  rxnorm_normalized:'RxNorm (U.S. National Library of Medicine) identifies this as the same or a directly equivalent drug concept.',
+  rxnorm_approximate:"RxNorm's approximate/fuzzy matching returned this as the closest candidate in its database. This is a suggested match, not a confirmed equivalence.",
+  nlm_clinical_tables:'Matched via the NLM Clinical Table Search Service, which maps common/lay language to standardized clinical term suggestions. This is a suggested mapping, not a confirmed one-to-one equivalence.',
+  wildcard:'No exact or synonym match was found for the term as typed. This is a raw prefix (wildcard) search on the underlying text field and may include partially matching or unrelated terms that merely share the same leading letters.'
+};
+function matchNoteHtml(res,original,inputId){
   if(!res.matched)return '';
-  const shown=res.wildcard?`results starting with "${esc(res.name.replace(/\*$/,''))}"`:`"${esc(res.name)}"`;
-  return `<p class="note" style="margin:-6px 0 14px">Showing ${shown} — no reports were found for "${esc(original)}" exactly. <a href="#" onclick="event.preventDefault();this.closest('.card').querySelector('input').value='${esc(original).replace(/'/g,"\\'")}';return false;" style="color:inherit;text-decoration:underline">Search only the exact term instead</a></p>`;
+  const methodLabel=NORMALIZATION_LABELS[res.method]||res.method||'Unknown';
+  const reason=NORMALIZATION_REASONS[res.method]||'';
+  const setter=inputId
+    ? `document.getElementById(${esc(JSON.stringify(inputId))}).value=${esc(JSON.stringify(original))};`
+    : `this.closest('.card').querySelector('input').value=${esc(JSON.stringify(original))};`;
+  return `<div class="normblock">
+    <div class="normrow"><span class="normlbl">User search</span><span class="normval">${esc(original)}</span></div>
+    <div class="normrow"><span class="normlbl">FDA query</span><span class="normval">${esc(res.query)}</span></div>
+    <div class="normrow"><span class="normlbl">Normalization method</span><span class="normval">${esc(methodLabel)}</span></div>
+    <div class="normrow"><span class="normlbl">Reason</span><span class="normval">${esc(reason)}</span></div>
+    <a href="#" onclick="event.preventDefault();${setter}return false;" class="normrevert">Search only the exact term "${esc(original)}" instead — no normalization</a>
+  </div>`;
 }
+
+/* ---------- Method &amp; Data expandable panel (Phase 2, item 6) ----------
+   Native <details>/<summary> — zero added JS state, cannot break existing
+   click handlers, and is keyboard/accessible by default. rows: array of
+   [label, htmlValue] pairs rendered Source → Query → Filters → Counts →
+   Formula → Result (tools pass only the rows relevant to what they do). */
+function methodPanel(rows){
+  return `<details class="methodpanel">
+    <summary>Method &amp; data ▾</summary>
+    <div class="methodbody">
+      ${rows.map(([label,val])=>`<div class="methodrow"><div class="mlbl">${esc(label)}</div><div class="mval">${val}</div></div>`).join('')}
+    </div>
+  </details>`;
+}
+/* Shared FAERS limitation summary — folded into every Method & Data panel's
+   final row rather than shown as a separate banner, per the brief to stay
+   concise and contextual rather than turning the app into a warning page. */
+const FAERS_LIMITATIONS_HTML=`<ul class="readpoints" style="margin-top:0">
+  <li><span class="ic info">i</span><span>Report counts are not incidence — there is no reliable denominator of how many people took the drug.</span></li>
+  <li><span class="ic info">i</span><span>Spontaneous reporting can be affected by under- or over-reporting, media attention, or litigation.</span></li>
+  <li><span class="ic info">i</span><span>Reports may be duplicated, incomplete, or unverified by FDA before publication.</span></li>
+  <li><span class="ic info">i</span><span>A report existing does not establish that the drug caused the reaction.</span></li>
+</ul>`;
 
 /* ---------- live drug-name autocomplete ----------
    Suggests as-you-type from two sources: (1) the local synonym dictionary,
@@ -1286,6 +1390,15 @@ async function drugSearch(silent){
         <h4>All matched reaction terms</h4>
         <table><tr><th>Reaction term</th><th>Reports</th><th></th></tr>${rows||'<tr><td colspan=3>No reaction data found.</td></tr>'}</table>
         <p class="note">Reaction counts are report counts returned by openFDA — not incidence rates, and not adjusted for exposure.</p>
+        ${methodPanel([
+          ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Query',esc(res.query)],
+          ['Filters','Exact-phrase match on <code>patient.drug.medicinalproduct</code>'],
+          ['Counts',`${reports.toLocaleString()} total reports · ${rx.length} distinct reaction-term rows after merge`],
+          ['Term merging','Rows are combined only when identical except for spacing/capitalization — see code comment on <code>cleanLabel()</code> for why a stricter, code-based merge is not possible through this endpoint.'],
+          ['Formula','None — this tool sums and ranks report counts. No rate, risk, or statistical calculation is applied.'],
+          ['Limitations',FAERS_LIMITATIONS_HTML]
+        ])}
         <div class="actions">
           <button class="btn ghost" onclick='exportDrugCSV(${esc(JSON.stringify(displayName))},${esc(JSON.stringify(rx))})'>Export CSV</button>
           <button class="btn ghost" onclick="go('outcomes');$('outDrug').value=${esc(JSON.stringify(displayName))};outcomes()">Outcome severity →</button>
@@ -1340,6 +1453,14 @@ async function reactionSearch(silent){
         <h4>All matched drugs</h4>
         <table><tr><th>Drug (medicinal product)</th><th>Reports</th><th></th></tr>${rows||'<tr><td colspan=3>No drug data found.</td></tr>'}</table>
         <p class="note">Drug counts are report counts returned by openFDA for this reaction term — not incidence rates, and not adjusted for how often each drug is prescribed.</p>
+        ${methodPanel([
+          ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Query',esc(res.query)],
+          ['Filters','Exact-phrase match on <code>patient.reaction.reactionmeddrapt</code>; "flagged serious" adds <code>AND serious:1</code>'],
+          ['Counts',`${reports.toLocaleString()} total reports · ${drugs.length} distinct drug rows after merge · ${seriousCount.toLocaleString()} flagged serious`],
+          ['Formula',`% flagged serious = seriousCount ÷ totalReports × 100 = ${seriousCount.toLocaleString()} ÷ ${reports.toLocaleString()} × 100 = ${seriousPct.toFixed(2)}%`],
+          ['Limitations',FAERS_LIMITATIONS_HTML]
+        ])}
         <div class="actions">
           <button class="btn ghost" onclick='exportReactionCSV(${esc(JSON.stringify(displayName))},${esc(JSON.stringify(drugs))})'>Export CSV</button>
           <button class="btn ghost" onclick="go('drug');$('drugName').value=${esc(JSON.stringify(top10[0]?.term||''))};drugSearch()" ${top10.length?'':'disabled'}>Analyze top drug →</button>
@@ -1375,14 +1496,23 @@ async function compareDrugs(silent){
       const nameA=resA.wildcard?a:resA.name, nameB=resB.wildcard?b:resB.name;
       const topA=mergeTermCounts(xA.results||[]).slice(0,6), topB=mergeTermCounts(xB.results||[]).slice(0,6);
       $('cmpOut').innerHTML=`
-        ${matchNoteHtml(resA,a)}${matchNoteHtml(resB,b)}
+        ${matchNoteHtml(resA,a,'cmpA')}${matchNoteHtml(resB,b,'cmpB')}
         <h4>Total reports</h4>
         <canvas id="cmpTotals" height="70"></canvas>
         <div class="row2" style="margin-top:22px">
           <div><h4>${esc(nameA)} — top reactions</h4><canvas id="cmpChartA" height="180"></canvas></div>
           <div><h4>${esc(nameB)} — top reactions</h4><canvas id="cmpChartB" height="180"></canvas></div>
         </div>
-        <p class="note" style="margin-top:16px">Comparing raw report counts only — differences in overall prescribing volume between drugs are not controlled for, so a higher count does not by itself imply a higher rate.</p>`;
+        <p class="note" style="margin-top:16px">Comparing raw report counts only — differences in overall prescribing volume between drugs are not controlled for, so a higher count does not by itself imply a higher rate.</p>
+        ${methodPanel([
+          ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Query A',esc(resA.query)],
+          ['Query B',esc(resB.query)],
+          ['Filters','Exact-phrase match on <code>patient.drug.medicinalproduct</code>, run independently for each drug'],
+          ['Counts',`${esc(nameA)}: ${totA.toLocaleString()} reports · ${esc(nameB)}: ${totB.toLocaleString()} reports`],
+          ['Formula','None — raw totals shown side by side, no statistical comparison applied.'],
+          ['Limitations',FAERS_LIMITATIONS_HTML]
+        ])}`;
       if(cmpTotalsChart)cmpTotalsChart.destroy();
       cmpTotalsChart=new Chart($('cmpTotals'),{type:'bar',data:{labels:[nameA,nameB],datasets:[{data:[totA,totB],backgroundColor:[PAL[0],PAL[1]],borderRadius:4}]},
         options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
@@ -1422,7 +1552,15 @@ async function outcomes(silent){
         <table style="margin-top:16px"><tr><th>Outcome</th><th>Reports</th><th>% of total</th></tr>
           ${data.map(d=>`<tr><td>${esc(d.label)}</td><td>${d.count.toLocaleString()}</td><td>${d.pct.toFixed(1)}%</td></tr>`).join('')}
         </table>
-        <p class="note" style="margin-top:14px">Outcome flags are self-reported and not mutually exclusive — one report can carry several serious-outcome flags at once, so percentages don't sum to 100%.</p>`;
+        <p class="note" style="margin-top:14px">Outcome flags are self-reported and not mutually exclusive — one report can carry several serious-outcome flags at once, so percentages don't sum to 100%.</p>
+        ${methodPanel([
+          ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Query',esc(res.query)],
+          ['Filters','Five separate queries, each the drug query AND one boolean outcome field = 1: <code>seriousnessdeath</code>, <code>seriousnesshospitalization</code>, <code>seriousnesslifethreatening</code>, <code>seriousnessdisabling</code>, <code>seriousnessother</code>'],
+          ['Counts',data.map(d=>`${d.label}: ${d.count.toLocaleString()}`).join(' · ')],
+          ['Formula','% of total = outcome count ÷ total reports for this drug × 100, computed independently per outcome field'],
+          ['Limitations',FAERS_LIMITATIONS_HTML]
+        ])}`;
       if(outChart)outChart.destroy();
       outChart=new Chart($('outChart'),{type:'bar',data:{labels:data.map(d=>d.label),datasets:[{data:data.map(d=>d.count),backgroundColor:[PAL[6],PAL[3],PAL[1],PAL[5],PAL[7]],borderRadius:4}]},
         options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
@@ -1486,6 +1624,15 @@ async function signal(silent){
         </div>
         <p class="note" style="margin-top:4px;font-size:11.5px">Tap ROR or PRR above to see the exact calculation.</p>
         <p class="note" style="margin-top:10px"><b>Research screen:</b> a ≥ 3, ROR &gt; 2 and lower 95% CI &gt; 1. This is a project-defined screening rule, not an FDA regulatory threshold. A disproportionality signal is not proof of causality.</p>
+        ${methodPanel([
+          ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Query',`All reports: <code>(no filter)</code> · Drug only: <code>${esc(res.query)}</code> · Reaction only: <code>${esc(rq(rx))}</code> · Both: <code>${esc(res.query+' AND '+rq(rx))}</code>`],
+          ['Filters','Exact-phrase match on both <code>patient.drug.medicinalproduct</code> and <code>patient.reaction.reactionmeddrapt</code>, combined into a 2×2 contingency table'],
+          ['Counts',`a=${a} · b=${b2} · c=${c} · d=${d}`],
+          ['Formula','ROR = (a×d)/(b×c); PRR = [a/(a+b)]/[c/(c+d)]; 95% CI = exp(ln(ROR)±1.96×SE), SE=√(1/a+1/b+1/c+1/d) — tap ROR or PRR above for the full worked calculation with your exact numbers.'],
+          ['Continuity correction','+0.5 added to every cell (Haldane–Anscombe correction) so the ratio stays defined when any cell is 0. Independently validated against a separately-coded reference implementation across normal, small, zero-cell, large, and boundary-value test cases — see project validation notes.'],
+          ['Limitations',FAERS_LIMITATIONS_HTML+'<p class="note" style="margin-top:8px">This screening rule is a research convention modeled on common pharmacovigilance practice — it is not an FDA, EMA, or WHO-UMC-endorsed threshold.</p>']
+        ])}
         <button class="btn gray" id="labelBtn" onclick="label(${esc(JSON.stringify(displayDrug))})">Check FDA label evidence</button>
         <div id="labelOut"></div>
       </div>`;
@@ -1698,6 +1845,13 @@ async function caseView(){
         <h4>Drugs reported</h4>
         <table><tr><th>Product</th><th>Role</th><th>Indication</th></tr>${drugsRows||'<tr><td colspan=3>No drug data found.</td></tr>'}</table>
         <h4>Reactions reported</h4><p class="note">${reactions.map(esc).join(', ')||'None reported'}</p>
+        ${methodPanel([
+          ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Query',esc('safetyreportid:'+q(id))],
+          ['Fields',`<code>receivedate</code>, <code>serious</code>, <code>occurcountry</code>, <code>patient.patientonsetage</code>/<code>patientonsetageunit</code>, <code>patient.patientsex</code>, <code>patient.drug[].medicinalproduct</code>/<code>drugcharacterization</code>/<code>drugindication</code>, <code>patient.reaction[].reactionmeddrapt</code>`],
+          ['Transform','Coded FAERS fields (sex, age unit, drug role) mapped to plain-language labels via fixed lookup tables matching FDA/ICH E2B coding — no calculation performed.'],
+          ['Limitations',FAERS_LIMITATIONS_HTML]
+        ])}
       </div>`;
     }catch(e){$('caseOut').innerHTML=errHTML(e);}
   });
@@ -1731,6 +1885,15 @@ async function trend(silent){
       chart=new Chart($('trendChart'),{type:'line',data:{labels,datasets:[{label:'FDA reports for '+displayName+' (by month)',data:counts,borderColor:PAL[0],backgroundColor:PAL[0]+'22',fill:true,tension:.15,pointRadius:0}]},
         options:{plugins:{tooltip:{callbacks:{title:items=>items[0]?.label||''}}},
           scales:{x:{type:'category',grid:{display:false},ticks:{maxTicksLimit:12,autoSkip:true}},y:{beginAtZero:true,title:{display:true,text:'Reports'},grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}}}}});
+      $('trendMethod').innerHTML=methodPanel([
+        ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+        ['Query',esc(res.query)],
+        ['Filters','Exact-phrase match on <code>patient.drug.medicinalproduct</code>, counted by <code>receivedate</code>'],
+        ['Counts',`${keys.length} months of data, ${counts.reduce((s,v)=>s+v,0).toLocaleString()} total reports plotted`],
+        ['Transform','openFDA returns one count per exact calendar day; this app sums those daily counts client-side into calendar months for readability. No smoothing or estimation is applied.'],
+        ['Formula','None — summed report counts per month, no rate calculation.'],
+        ['Limitations',FAERS_LIMITATIONS_HTML+'<p class="note" style="margin-top:8px">openFDA data is updated quarterly and can lag the live FDA FAERS system by three months or more, per openFDA documentation.</p>']
+      ]);
       state.trend={loaded:true,name:n};
       if(silent)flashUpdated('trendChart');
     }catch(e){
@@ -1756,10 +1919,19 @@ async function leaderboard(silent){
       const maxR=Math.max(...topRx.map(d=>d.count),1);
       const rowsHtml=(items,max)=>items.map((it,i)=>`<div class="leaderrow"><span class="rank">${String(i+1).padStart(2,'0')}</span><span class="name">${esc(it.term)}</span><span class="bar" style="width:${Math.max(6,it.count/max*90)}px"></span><span class="val">${it.count.toLocaleString()}</span></div>`).join('');
       $('leadOut').innerHTML=`<div class="row2">
-        <div><h4>Top reported drugs</h4>${rowsHtml(topDrugs,maxD)}</div>
-        <div><h4>Top reported reactions</h4>${rowsHtml(topRx,maxR)}</div>
+        <div><h4>Top drug terms (openFDA aggregation)</h4>${rowsHtml(topDrugs,maxD)}</div>
+        <div><h4>Top reaction terms (openFDA aggregation)</h4>${rowsHtml(topRx,maxR)}</div>
       </div>
-      <p class="note" style="margin-top:16px">Unfiltered counts across the entire public FAERS index — reflects report volume, not risk, and is skewed toward widely prescribed, long-marketed drugs.</p>`;
+      <p class="note" style="margin-top:16px">Unfiltered counts across the entire public FAERS index — reflects report volume, not risk, and is skewed toward widely prescribed, long-marketed drugs.</p>
+      ${methodPanel([
+        ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+        ['Query','<code>count=patient.drug.medicinalproduct.exact</code> and <code>count=patient.reaction.reactionmeddrapt.exact</code> — no search filter applied, i.e. the entire public index'],
+        ['Aggregation population','Per openFDA documentation, a <code>count</code> query with no <code>limit</code> specified returns the top 1,000 most frequent values, computed server-side over the complete matching set (here, all records). This app displays the top 12 of that returned list.'],
+        ['Why "top reported" holds here','Because the aggregation runs over the full unfiltered dataset (not a sample) and returns values already sorted by frequency, the top 12 of a top-1,000 list is mathematically the same as the true top 12 by report count — this is not a client-side approximation.'],
+        ['Known limitation — NOT a ranking guarantee at the real-world drug/reaction level','Counts are bucketed by the exact submitted text string, not by real-world substance or standardized term. The same drug reported under different spellings, salts, or brand names (or the same reaction with minor wording differences beyond what the merge step above catches) is split across separate rows here — so a heavily-fragmented name could rank lower than its true combined volume would justify.'],
+        ['Formula','None — raw frequency counts and rank order only.'],
+        ['Limitations',FAERS_LIMITATIONS_HTML]
+      ])}`;
       state.leaderboard.loaded=true;
       if(silent)flashUpdated('leadOut');
     }catch(e){
@@ -1786,7 +1958,13 @@ async function recent(silent){
         return `<tr><td>${esc(r.id)}</td><td>${receivedFmt}</td><td>${fmtAge(r.age,r.ageUnit)}</td><td>${fmtSex(r.sex)}</td><td>${esc(r.drugs.join(', '))||'—'}</td><td>${esc(r.reactions.join(', '))||'—'}</td></tr>`;
       }).join('');
       $('recentOut').innerHTML=`<table><tr><th>ID</th><th>Received</th><th>Age</th><th>Sex</th><th>Drugs</th><th>Reactions</th></tr>${rows||'<tr><td colspan=6>No data.</td></tr>'}</table>
-        <div class="actions"><button class="btn ghost" onclick='exportRecentCSV(${esc(JSON.stringify(out))})'>Export CSV</button></div>`;
+        <div class="actions"><button class="btn ghost" onclick='exportRecentCSV(${esc(JSON.stringify(out))})'>Export CSV</button></div>
+        ${methodPanel([
+          ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Query','<code>limit=20&sort=receivedate:desc</code> — no drug/reaction filter, most recent 20 by receive date across the entire public index'],
+          ['Transform','Coded fields (sex, age unit, drug role) mapped to plain-language labels — no calculation performed.'],
+          ['Limitations',FAERS_LIMITATIONS_HTML+'<p class="note" style="margin-top:8px">"Recent" means most recently added to the openFDA index, not most recent real-world event date — openFDA updates quarterly, so these are the newest records in the current quarterly release, not necessarily from the last few days.</p>']
+        ])}`;
       state.recent.loaded=true;
       if(silent)flashUpdated('recentOut');
     }catch(e){
