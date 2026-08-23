@@ -1398,7 +1398,7 @@ async function drugSearch(silent){
         <table><tr><th>Reaction term</th><th>Reports</th><th></th></tr>${rows||'<tr><td colspan=3>No reaction data found.</td></tr>'}</table>
         <p class="note">Reaction counts are report counts returned by openFDA — not incidence rates, and not adjusted for exposure.</p>
         ${methodPanel([
-          ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
           ['Query',esc(res.query)],
           ['Counts',`${reports.toLocaleString()} total reports · ${rx.length} distinct reaction-term rows after merge`],
           ['Limitations',FAERS_LIMITATIONS_HTML]
@@ -1458,7 +1458,7 @@ async function reactionSearch(silent){
         <table><tr><th>Drug (medicinal product)</th><th>Reports</th><th></th></tr>${rows||'<tr><td colspan=3>No drug data found.</td></tr>'}</table>
         <p class="note">Drug counts are report counts returned by openFDA for this reaction term — not incidence rates, and not adjusted for how often each drug is prescribed.</p>
         ${methodPanel([
-          ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
           ['Query',esc(res.query)],
           ['Counts',`${reports.toLocaleString()} total reports · ${drugs.length} distinct drug rows after merge · ${seriousCount.toLocaleString()} flagged serious`],
           ['Limitations',FAERS_LIMITATIONS_HTML]
@@ -1507,7 +1507,7 @@ async function compareDrugs(silent){
         </div>
         <p class="note" style="margin-top:16px">Comparing raw report counts only — differences in overall prescribing volume between drugs are not controlled for, so a higher count does not by itself imply a higher rate.</p>
         ${methodPanel([
-          ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
           ['Query',`A: <code>${esc(resA.query)}</code> · B: <code>${esc(resB.query)}</code>`],
           ['Counts',`${esc(nameA)}: ${totA.toLocaleString()} reports · ${esc(nameB)}: ${totB.toLocaleString()} reports`],
           ['Limitations',FAERS_LIMITATIONS_HTML]
@@ -1553,7 +1553,7 @@ async function outcomes(silent){
         </table>
         <p class="note" style="margin-top:14px">Outcome flags are self-reported and not mutually exclusive — one report can carry several serious-outcome flags at once, so percentages don't sum to 100%.</p>
         ${methodPanel([
-          ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
           ['Query',esc(res.query)],
           ['Counts',data.map(d=>`${d.label}: ${d.count.toLocaleString()}`).join(' · ')],
           ['Limitations',FAERS_LIMITATIONS_HTML]
@@ -1622,7 +1622,7 @@ async function signal(silent){
         <p class="note" style="margin-top:4px;font-size:11.5px">Tap ROR or PRR above to see the exact calculation.</p>
         <p class="note" style="margin-top:10px"><b>Research screen:</b> a ≥ 3, ROR &gt; 2 and lower 95% CI &gt; 1. This is a project-defined screening rule, not an FDA regulatory threshold. A disproportionality signal is not proof of causality.</p>
         ${methodPanel([
-          ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
           ['Query',`Drug only: <code>${esc(res.query)}</code> · Reaction only: <code>${esc(rq(rx))}</code> · Both: <code>${esc(res.query+' AND '+rq(rx))}</code>`],
           ['Counts',`a=${a} · b=${b2} · c=${c} · d=${d}`],
           ['Limitations',FAERS_LIMITATIONS_HTML]
@@ -1840,7 +1840,7 @@ async function caseView(){
         <table><tr><th>Product</th><th>Role</th><th>Indication</th></tr>${drugsRows||'<tr><td colspan=3>No drug data found.</td></tr>'}</table>
         <h4>Reactions reported</h4><p class="note">${reactions.map(esc).join(', ')||'None reported'}</p>
         ${methodPanel([
-          ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
           ['Query',esc('safetyreportid:'+q(id))],
           ['Counts','1 report retrieved by exact ID match'],
           ['Limitations',FAERS_LIMITATIONS_HTML]
@@ -1879,7 +1879,7 @@ async function trend(silent){
         options:{plugins:{tooltip:{callbacks:{title:items=>items[0]?.label||''}}},
           scales:{x:{type:'category',grid:{display:false},ticks:{maxTicksLimit:12,autoSkip:true}},y:{beginAtZero:true,title:{display:true,text:'Reports'},grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}}}}});
       $('trendMethod').innerHTML=methodPanel([
-        ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+        ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
         ['Query',esc(res.query)],
         ['Counts',`${keys.length} months of data, ${counts.reduce((s,v)=>s+v,0).toLocaleString()} total reports plotted`],
         ['Limitations',FAERS_LIMITATIONS_HTML]
@@ -1914,7 +1914,7 @@ async function leaderboard(silent){
       </div>
       <p class="note" style="margin-top:16px">Unfiltered counts across the entire public FAERS index — reflects report volume, not risk, and is skewed toward widely prescribed, long-marketed drugs.</p>
       ${methodPanel([
-        ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+        ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
         ['Query','<code>count=patient.drug.medicinalproduct.exact</code> and <code>count=patient.reaction.reactionmeddrapt.exact</code> — no filter, entire public index'],
         ['Counts','Top 12 shown, drawn from openFDA\u2019s top-1,000-by-frequency aggregation computed over the complete dataset'],
         ['Limitations','<ul class="readpoints" style="margin-top:0"><li><span class="ic info">i</span><span>Counts are bucketed by exact submitted text — the same drug under different spellings/brand names is split across separate rows, so true combined volume can rank lower than shown.</span></li><li><span class="ic info">i</span><span>Reflects report volume, not risk, and is skewed toward widely prescribed, long-marketed drugs.</span></li></ul>']
@@ -1947,7 +1947,7 @@ async function recent(silent){
       $('recentOut').innerHTML=`<table><tr><th>ID</th><th>Received</th><th>Age</th><th>Sex</th><th>Drugs</th><th>Reactions</th></tr>${rows||'<tr><td colspan=6>No data.</td></tr>'}</table>
         <div class="actions"><button class="btn ghost" onclick='exportRecentCSV(${esc(JSON.stringify(out))})'>Export CSV</button></div>
         ${methodPanel([
-          ['Source','openFDA — FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
           ['Query','<code>limit=20&sort=receivedate:desc</code> — no filter, entire public index'],
           ['Counts','20 most recent reports by receive date'],
           ['Limitations','<ul class="readpoints" style="margin-top:0"><li><span class="ic info">i</span><span>"Recent" means most recently added to the openFDA index, not most recent real-world event date — openFDA updates quarterly.</span></li><li><span class="ic info">i</span><span>A report existing does not establish that the drug caused the reaction.</span></li></ul>']
