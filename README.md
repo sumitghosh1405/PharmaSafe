@@ -4,22 +4,19 @@ This turns PharmaSafe into an app you can install on the home screen of
 **both** Android and iOS: full-screen, no browser bar, its own icon, and
 an offline app shell that opens instantly.
 
-## Important: this needs to be hosted online first
+## Hosting
 
+This is live on **GitHub Pages** at `https://sumitghosh1405.github.io/PharmaSafe/`.
 Phones only allow "install to home screen" from a page served over
-**https://** (or via a real hosting provider's preview) — not from a file
-opened directly on the device. That's a security rule set by Apple and
-Google, not something in this code.
+**https://**, not a file opened directly on the device — GitHub Pages
+already satisfies that.
 
-The fastest free ways to get an https URL for this folder:
+To redeploy after making changes: commit and push the updated files to
+the repo's default branch (or the `gh-pages` branch, whichever this repo
+is configured to serve from) — GitHub Pages rebuilds automatically within
+a minute or two of a push. No build step or CLI tool is required.
 
-- **Netlify Drop** — go to app.netlify.com/drop and drag this whole folder in.
-  You get a live https URL in ~10 seconds, no account required for a quick test.
-- **GitHub Pages** — push this folder to a GitHub repo, enable Pages in
-  Settings → Pages, and it's live at `https://<you>.github.io/<repo>/`.
-- **Vercel / Firebase Hosting** — similar drag-and-deploy or CLI flow.
-
-Once it's hosted, open that URL on your phone.
+Once it's live, open that URL on your phone.
 
 ## Installing
 
