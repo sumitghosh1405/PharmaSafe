@@ -470,7 +470,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
     <button class="modalclose" onclick="closeFeedbackModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     <div class="calc-eyebrow">Your opinion matters</div>
     <div class="calc-title">Rate PharmaSafe</div>
-    <p class="note" style="margin:-4px 0 16px">You can rate PharmaSafe once. You can send written feedback as many times as you like.</p>
+    <p class="note" style="margin:-4px 0 16px">Give your response to help our project team improve PharmaSafe. You can rate once, and send written feedback anytime.</p>
 
     <div id="starRow" class="starRow">
       <button type="button" class="star" data-v="1" onclick="setFeedbackRating(1)" aria-label="1 star">★</button>
@@ -481,8 +481,8 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
     </div>
 
     <p class="note" id="ratingLockNote" style="margin:8px 0 0"></p>
-    <label style="margin-top:16px">Your feedback (optional)</label>
-    <textarea id="feedbackText" rows="4" placeholder="What worked well, what didn't, what you'd add..." style="width:100%;padding:12px 13px;border:1.5px solid var(--line-strong);border-radius:var(--radius-sm);font-family:var(--sans);font-size:14.5px;background:var(--panel);color:var(--ink);resize:vertical"></textarea>
+    <label style="margin-top:16px">Your response</label>
+    <textarea id="feedbackText" rows="4" placeholder="Tell our project team what you think about PharmaSafe..." style="width:100%;padding:12px 13px;border:1.5px solid var(--line-strong);border-radius:var(--radius-sm);font-family:var(--sans);font-size:14.5px;background:var(--panel);color:var(--ink);resize:vertical"></textarea>
 
     <button class="btn" id="feedbackSubmitBtn" onclick="submitFeedback()" style="margin-top:14px;width:100%">Submit feedback</button>
     <p class="note" id="feedbackStatus" style="margin-top:10px"></p>
@@ -1947,7 +1947,7 @@ function updateRatingUI(){
     s.style.opacity=hasRated?'0.55':'';
   });
   const note=$('ratingLockNote');
-  if(note)note.textContent=hasRated?'You have already rated PharmaSafe. Your written feedback can still be sent again.':'';
+  if(note)note.textContent=hasRated?'You have already rated PharmaSafe. You can still send your response to our project team anytime.':'';
 }
 
 function setFeedbackRating(v){
@@ -1974,10 +1974,32 @@ function closeFeedbackModal(){
 /* Gmail compose contains ONLY the text entered by the user. No rating,
    page URL, user email, metadata, or other automatically-added content. */
 function openGmailCompose(message){
-  const subject=encodeURIComponent('PharmaSafe feedback');
   const body=encodeURIComponent(message||'');
-  const url=`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(FEEDBACK_EMAIL)}&su=${subject}&body=${body}`;
-  window.open(url,'_blank');
+  const subject=encodeURIComponent('PharmaSafe feedback');
+  const to=encodeURIComponent(FEEDBACK_EMAIL);
+  const account=encodeURIComponent(FEEDBACK_EMAIL);
+
+  // On iPhone/iPad, open the installed Gmail app directly and request the
+  // PharmaSafe Gmail account. The Gmail iOS compose URL is an app URL scheme.
+  // If Gmail is not installed (or the app cannot handle the scheme), fall
+  // back to the Gmail web compose page.
+  const gmailAppUrl=`googlegmail:///co?to=${to}&subject=${subject}&body=${body}&account=${account}`;
+  const gmailWebUrl=`https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`;
+
+  let appOpened=false;
+  const onHidden=()=>{ appOpened=true; document.removeEventListener('visibilitychange',onHidden); };
+  document.addEventListener('visibilitychange',onHidden);
+
+  // Custom URL schemes are supported by the Gmail iOS app; web Gmail does
+  // not reliably open a prefilled compose window on mobile Safari.
+  window.location.href=gmailAppUrl;
+
+  setTimeout(()=>{
+    document.removeEventListener('visibilitychange',onHidden);
+    if(!appOpened){
+      window.open(gmailWebUrl,'_blank');
+    }
+  },1200);
 }
 
 async function recordRatingOnly(rating){
@@ -2044,14 +2066,14 @@ async function submitFeedback(){
     openGmailCompose(message);
     statusEl.style.color='var(--ok)';
     statusEl.textContent=ratingSaved && feedbackRating
-      ? 'Rating saved once. Opening Gmail with your feedback.'
-      : 'Opening Gmail with your feedback.';
+      ? 'Rating saved. Opening Gmail with your response to our project team.'
+      : 'Opening Gmail with your response to our project team.';
   }else if(feedbackRating && ratingSaved){
     statusEl.style.color='var(--ok)';
-    statusEl.textContent='Your rating was saved. You can send written feedback anytime.';
+    statusEl.textContent='Your rating was saved. You can send your response to our project team anytime.';
   }else if(!ratingSaved && feedbackRating){
     statusEl.style.color='var(--signal)';
-    statusEl.textContent='Your rating was already submitted; your feedback can still be sent.';
+    statusEl.textContent='Your rating was already submitted; your response can still be sent.';
   }
 
   feedbackRating=0;

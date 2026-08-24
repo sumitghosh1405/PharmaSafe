@@ -7,7 +7,7 @@
 // when genuinely offline; (2) the cache name below is versioned, so this
 // deployment itself forces every existing install to detect, install, and
 // activate this new worker immediately instead of silently keeping v1.
-const CACHE = 'pharmasafe-shell-v4';
+const CACHE = 'pharmasafe-shell-v5';
 const SHELL = [
   './manifest.json',
   './icons/icon-192.png',
