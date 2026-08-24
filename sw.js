@@ -1,4 +1,3 @@
-// v3: feedback/rating update + forced service-worker refresh.
 // v2: fixed a real staleness bug — v1 used cache-first for index.html
 // itself, so once installed, an updated site never reached devices that
 // already had the app cached (installed home-screen icon included) until
@@ -8,7 +7,7 @@
 // when genuinely offline; (2) the cache name below is versioned, so this
 // deployment itself forces every existing install to detect, install, and
 // activate this new worker immediately instead of silently keeping v1.
-const CACHE = 'pharmasafe-shell-v3';
+const CACHE = 'pharmasafe-shell-v4';
 const SHELL = [
   './manifest.json',
   './icons/icon-192.png',

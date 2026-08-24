@@ -470,7 +470,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
     <button class="modalclose" onclick="closeFeedbackModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     <div class="calc-eyebrow">Your opinion matters</div>
     <div class="calc-title">Rate PharmaSafe</div>
-    <p class="note" style="margin:-4px 0 16px">Quick rating plus anything you'd like to tell us — goes straight to the project team.</p>
+    <p class="note" style="margin:-4px 0 16px">You can rate PharmaSafe once. You can send written feedback as many times as you like.</p>
 
     <div id="starRow" class="starRow">
       <button type="button" class="star" data-v="1" onclick="setFeedbackRating(1)" aria-label="1 star">★</button>
@@ -480,6 +480,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       <button type="button" class="star" data-v="5" onclick="setFeedbackRating(5)" aria-label="5 stars">★</button>
     </div>
 
+    <p class="note" id="ratingLockNote" style="margin:8px 0 0"></p>
     <label style="margin-top:16px">Your feedback (optional)</label>
     <textarea id="feedbackText" rows="4" placeholder="What worked well, what didn't, what you'd add..." style="width:100%;padding:12px 13px;border:1.5px solid var(--line-strong);border-radius:var(--radius-sm);font-family:var(--sans);font-size:14.5px;background:var(--panel);color:var(--ink);resize:vertical"></textarea>
 
@@ -1893,19 +1894,15 @@ function closeCalcModal(){
   setTimeout(()=>{ if(!m.classList.contains('show'))m.style.display='none'; },260);
 }
 
-/* ---------- feedback + one-rating-per-user ----------
-   Feedback opens the Gmail app first with the recipient, subject and message
-   already filled in. If the Gmail app is unavailable, Gmail web compose is
-   used as a fallback.
-
-   Ratings use one Firestore document per Firebase UID. Signed-in users have
-   one rating per account. Visitors who are not signed in receive a Firebase
-   anonymous UID automatically; if they later create an account, that
-   anonymous identity is linked to the account so the rating remains theirs.
-   A localStorage guard is also used as a fallback if Anonymous Auth or
-   Firestore has not yet been enabled. */
+/* ---------- feedback ----------
+   Rating is stored once per Firebase user (including anonymous users).
+   Written feedback is NOT stored in Firestore and is unlimited: every time
+   the user writes feedback, Gmail opens with only that feedback text.
+   Gmail still requires the user to tap Send; a website cannot silently send
+   mail from the user's Gmail account. */
 const FEEDBACK_EMAIL="pharmasafe.info@gmail.com";
 let feedbackRating=0;
+let hasRated=false;
 let ratingsDb=null, ratingsDbTried=false;
 
 function getRatingsDb(){
@@ -1917,54 +1914,44 @@ function getRatingsDb(){
   return ratingsDb;
 }
 
-function getActiveUser(){
+async function ensureRatingUser(){
+  if(!firebaseReady)return null;
   try{
-    if(currentUser)return currentUser;
-    if(typeof firebaseReady!=='undefined' && firebaseReady && firebase.auth().currentUser){
-      currentUser=firebase.auth().currentUser;
-      return currentUser;
+    let user=firebase.auth().currentUser;
+    if(!user){
+      const cred=await firebase.auth().signInAnonymously();
+      user=cred.user;
     }
-  }catch(e){}
-  return null;
+    return user;
+  }catch(e){ return null; }
 }
 
-function getRatingStorageKey(){
-  const user=getActiveUser();
-  if(user && user.uid)return `pharmasafe_rating_${user.uid}`;
-  return 'pharmasafe_rating_anonymous';
-}
-
-function hasAnyBrowserRating(){
-  try{return localStorage.getItem('pharmasafe_has_rated')==='1';}catch(e){return false;}
-}
-
-async function getExistingRating(){
-  const localKey=getRatingStorageKey();
-  try{
-    const local=localStorage.getItem(localKey);
-    if(local){
-      const parsed=JSON.parse(local);
-      if(parsed && Number(parsed.rating)>=1 && Number(parsed.rating)<=5)return Number(parsed.rating);
-    }
-  }catch(e){}
-
+async function loadUserRatingStatus(){
   const db=getRatingsDb();
-  const user=getActiveUser();
-  if(!db || !user || !user.uid)return null;
+  if(!db)return false;
+  const user=await ensureRatingUser();
+  if(!user)return false;
   try{
-    const doc=await db.collection('ratings').doc(user.uid).get();
-    if(doc.exists){
-      const r=Number(doc.data().rating);
-      if(r>=1 && r<=5){
-        try{localStorage.setItem(localKey,JSON.stringify({rating:r}));}catch(e){}
-        return r;
-      }
-    }
-  }catch(e){}
-  return null;
+    const snap=await db.collection('ratings').doc(user.uid).get();
+    hasRated=snap.exists;
+  }catch(e){ hasRated=false; }
+  updateRatingUI();
+  return hasRated;
+}
+
+function updateRatingUI(){
+  const stars=document.querySelectorAll('#starRow .star');
+  stars.forEach(s=>{
+    s.disabled=hasRated;
+    s.style.cursor=hasRated?'not-allowed':'';
+    s.style.opacity=hasRated?'0.55':'';
+  });
+  const note=$('ratingLockNote');
+  if(note)note.textContent=hasRated?'You have already rated PharmaSafe. Your written feedback can still be sent again.':'';
 }
 
 function setFeedbackRating(v){
+  if(hasRated)return;
   feedbackRating=v;
   document.querySelectorAll('#starRow .star').forEach(s=>{
     s.classList.toggle('filled', Number(s.dataset.v)<=v);
@@ -1973,99 +1960,45 @@ function setFeedbackRating(v){
 }
 
 async function openFeedbackModal(){
-  const existing=await getExistingRating();
-  if(existing || hasAnyBrowserRating()){
-    feedbackRating=existing || 0;
-    $('feedbackStatus').style.color='var(--muted)';
-    $('feedbackStatus').textContent=existing
-      ? `You have already rated PharmaSafe (${existing}/5). One rating per user is allowed.`
-      : 'You have already submitted a rating from this browser. One rating per user is allowed.';
-    document.querySelectorAll('#starRow .star').forEach(s=>{
-      s.classList.toggle('filled', Number(s.dataset.v)<=existing);
-      s.disabled=true;
-      s.style.cursor='not-allowed';
-      s.style.opacity=Number(s.dataset.v)<=existing?'1':'.45';
-    });
-  }else{
-    feedbackRating=0;
-    $('feedbackStatus').textContent='';
-    document.querySelectorAll('#starRow .star').forEach(s=>{
-      s.disabled=false;
-      s.style.cursor='pointer';
-      s.style.opacity='1';
-      s.classList.remove('filled');
-    });
-  }
   const m=$('feedbackModal');
   m.style.display='flex';
   requestAnimationFrame(()=>m.classList.add('show'));
+  await loadUserRatingStatus();
 }
-
 function closeFeedbackModal(){
   const m=$('feedbackModal');
   m.classList.remove('show');
   setTimeout(()=>{ if(!m.classList.contains('show'))m.style.display='none'; },260);
 }
 
-/* Try the Gmail iOS/Android app first. If the app cannot handle the custom
-   scheme, fall back to Gmail's web compose screen. */
-function openGmailCompose(rating,message){
-  const subject=encodeURIComponent(`PharmaSafe feedback — ${rating}/5`);
-  const body=encodeURIComponent(
-    `PharmaSafe feedback\n\nRating: ${rating}/5\n\nFeedback:\n${message||'(No written feedback)'}\n\nPage: ${location.href}`
-  );
-  const appUrl=`googlegmail://co?to=${encodeURIComponent(FEEDBACK_EMAIL)}&subject=${subject}&body=${body}`;
-  const webUrl=`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(FEEDBACK_EMAIL)}&su=${subject}&body=${body}`;
-
-  let leftPage=false;
-  const onVisibility=()=>{ if(document.hidden)leftPage=true; };
-  document.addEventListener('visibilitychange',onVisibility);
-  window.location.href=appUrl;
-  setTimeout(()=>{
-    document.removeEventListener('visibilitychange',onVisibility);
-    if(!leftPage)window.location.href=webUrl;
-  },900);
+/* Gmail compose contains ONLY the text entered by the user. No rating,
+   page URL, user email, metadata, or other automatically-added content. */
+function openGmailCompose(message){
+  const subject=encodeURIComponent('PharmaSafe feedback');
+  const body=encodeURIComponent(message||'');
+  const url=`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(FEEDBACK_EMAIL)}&su=${subject}&body=${body}`;
+  window.open(url,'_blank');
 }
 
 async function recordRatingOnly(rating){
   const db=getRatingsDb();
-  const user=getActiveUser();
-  const uid=user && user.uid;
-  const localKey=getRatingStorageKey();
-
-  // Browser-level guard protects against duplicate submissions even when
-  // Firestore is temporarily unavailable.
+  if(!db || hasRated)return false;
+  const user=await ensureRatingUser();
+  if(!user)return false;
   try{
-    const local=localStorage.getItem(localKey);
-    if(local){
-      const old=JSON.parse(local);
-      if(old && Number(old.rating)>=1)return {ok:false,reason:'already-rated'};
-    }
-  }catch(e){}
-
-  if(!db || !uid){
-    try{localStorage.setItem(localKey,JSON.stringify({rating:Number(rating),ts:Date.now()}));localStorage.setItem('pharmasafe_has_rated','1');}catch(e){}
-    return {ok:true};
-  }
-
-  try{
-    const ref=db.collection('ratings').doc(uid);
+    const ref=db.collection('ratings').doc(user.uid);
     const existing=await ref.get();
     if(existing.exists){
-      const old=Number(existing.data().rating);
-      try{localStorage.setItem(localKey,JSON.stringify({rating:old}));localStorage.setItem('pharmasafe_has_rated','1');}catch(e){}
-      return {ok:false,reason:'already-rated'};
+      hasRated=true;
+      updateRatingUI();
+      return false;
     }
-    await ref.create({rating:Number(rating),ts:firebase.firestore.FieldValue.serverTimestamp()});
-    try{localStorage.setItem(localKey,JSON.stringify({rating:Number(rating)}));localStorage.setItem('pharmasafe_has_rated','1');}catch(e){}
+    await ref.set({rating:Number(rating),ts:firebase.firestore.FieldValue.serverTimestamp()});
+    hasRated=true;
+    updateRatingUI();
     loadRatingSummary();
-    return {ok:true};
-  }catch(e){
-    if(e && e.code==='already-exists')return {ok:false,reason:'already-rated'};
-    // Keep a local one-rating guard if Firestore is not ready yet.
-    try{localStorage.setItem(localKey,JSON.stringify({rating:Number(rating),ts:Date.now()}));localStorage.setItem('pharmasafe_has_rated','1');}catch(err){}
-    return {ok:true};
-  }
+    return true;
+  }catch(e){ return false; }
 }
 
 async function loadRatingSummary(){
@@ -2074,48 +2007,57 @@ async function loadRatingSummary(){
   try{
     const snap=await db.collection('ratings').get();
     let sum=0,count=0;
-    snap.forEach(doc=>{
-      const r=Number(doc.data().rating);
-      if(r>=1 && r<=5){sum+=r;count++;}
-    });
+    snap.forEach(doc=>{ const r=doc.data().rating; if(typeof r==='number'){sum+=r;count++;} });
     if(count===0)return;
     const avg=(sum/count).toFixed(1);
     const el=$('ratingSummary');
     el.innerHTML=`<span class="rs-star">★</span> ${avg} · ${count} rating${count===1?'':'s'}`;
     el.style.display='inline-flex';
-  }catch(e){ /* Firestore not enabled yet — badge stays hidden */ }
+  }catch(e){ /* Firestore not enabled yet, or read blocked by rules */ }
 }
 
 async function submitFeedback(){
   const statusEl=$('feedbackStatus');
-  if(!feedbackRating){
+  const message=$('feedbackText').value.trim();
+  const btn=$('feedbackSubmitBtn');
+
+  /* A rating is optional once it has already been submitted. If the user
+     chooses a star for the first time, save it once; written feedback remains
+     independent and can be sent unlimited times. */
+  if(!hasRated && !feedbackRating && !message){
     statusEl.style.color='var(--signal)';
-    statusEl.textContent='Please select a star rating first.';
-    return;
-  }
-  const existing=await getExistingRating();
-  if(existing){
-    statusEl.style.color='var(--muted)';
-    statusEl.textContent=`You have already rated PharmaSafe (${existing}/5). One rating per user is allowed.`;
+    statusEl.textContent='Please choose a rating or write feedback.';
     return;
   }
 
-  const message=$('feedbackText').value.trim();
-  const btn=$('feedbackSubmitBtn');
-  btn.disabled=true; btn.textContent='Preparing…';
+  btn.disabled=true; btn.textContent='Sending…';
   statusEl.style.color='var(--muted)';
   statusEl.textContent='';
 
-  const result=await recordRatingOnly(feedbackRating);
-  if(!result.ok && result.reason==='already-rated'){
-    statusEl.textContent='You have already submitted a rating from this account/browser.';
-    btn.disabled=false; btn.textContent='Submit feedback';
-    return;
+  let ratingSaved=true;
+  if(!hasRated && feedbackRating){
+    ratingSaved=await recordRatingOnly(feedbackRating);
   }
 
-  openGmailCompose(feedbackRating,message);
-  statusEl.style.color='var(--ok)';
-  statusEl.textContent='Rating saved. Gmail is opening with your feedback already filled in — just tap Send.';
+  if(message){
+    /* The Gmail message contains ONLY the text entered by the user. */
+    openGmailCompose(message);
+    statusEl.style.color='var(--ok)';
+    statusEl.textContent=ratingSaved && feedbackRating
+      ? 'Rating saved once. Opening Gmail with your feedback.'
+      : 'Opening Gmail with your feedback.';
+  }else if(feedbackRating && ratingSaved){
+    statusEl.style.color='var(--ok)';
+    statusEl.textContent='Your rating was saved. You can send written feedback anytime.';
+  }else if(!ratingSaved && feedbackRating){
+    statusEl.style.color='var(--signal)';
+    statusEl.textContent='Your rating was already submitted; your feedback can still be sent.';
+  }
+
+  feedbackRating=0;
+  $('feedbackText').value='';
+  document.querySelectorAll('#starRow .star').forEach(s=>s.classList.remove('filled'));
+  updateRatingUI();
   btn.disabled=false; btn.textContent='Submit feedback';
 }
 
@@ -2316,7 +2258,7 @@ async function doInstall(){
    SETUP (one-time, ~3 minutes):
    1. Go to https://console.firebase.google.com → Add project (free tier).
    2. In the project: Build → Authentication → Get started → enable
-      "Email/Password" and "Anonymous" as sign-in methods.
+      "Email/Password" as a sign-in method.
    3. Project settings (gear icon) → General → "Your apps" → Add app → Web.
       Copy the config object it gives you into FIREBASE_CONFIG below.
    Until you do this, the app still works fully for anonymous browsing —
@@ -2387,13 +2329,7 @@ async function handleSignup(e){
   authBusy('signupSubmitBtn',true,'Create account');
   try{
     await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-    let cred;
-    if(currentUser && currentUser.isAnonymous){
-      const credential=firebase.auth.EmailAuthProvider.credential(email,pw);
-      cred=await currentUser.linkWithCredential(credential);
-    }else{
-      cred=await firebase.auth().createUserWithEmailAndPassword(email,pw);
-    }
+    const cred=await firebase.auth().createUserWithEmailAndPassword(email,pw);
     if(name)await cred.user.updateProfile({displayName:name});
     enterApp(cred.user);
     hideAuthPrompt();
@@ -2444,10 +2380,16 @@ function handleLogout(){
 
 function enterApp(user){
   currentUser=user;
-  const name=user.displayName || user.email;
-  $('userPillName').textContent=name;
-  $('userPill').style.display='flex';
-  $('loginLink').style.display='none';
+  const isAnonymous=!!user.isAnonymous;
+  if(isAnonymous){
+    $('userPill').style.display='none';
+    $('loginLink').style.display='';
+  }else{
+    const name=user.displayName || user.email;
+    $('userPillName').textContent=name;
+    $('userPill').style.display='flex';
+    $('loginLink').style.display='none';
+  }
 }
 
 function initApp(){
@@ -2459,7 +2401,7 @@ function initApp(){
 
 /* Tool-use tracking → shows one skippable sign-in nudge after ~2 tool uses, never for logged-in users */
 function trackToolUse(){
-  if(currentUser && !currentUser.isAnonymous)return;
+  if(currentUser)return;
   if(localStorage.getItem('pharmasafe_auth_prompt_shown'))return;
   const n=parseInt(localStorage.getItem('pharmasafe_tool_uses')||'0',10)+1;
   localStorage.setItem('pharmasafe_tool_uses',String(n));
@@ -2472,13 +2414,17 @@ function trackToolUse(){
 if(firebaseReady){
   firebase.auth().onAuthStateChanged(async user=>{
     if(user){
-      currentUser=user;
-      if(!user.isAnonymous)enterApp(user);
-      return;
+      enterApp(user);
+      loadUserRatingStatus();
+    }else{
+      try{
+        const cred=await firebase.auth().signInAnonymously();
+        enterApp(cred.user);
+        loadUserRatingStatus();
+      }catch(e){
+        console.warn('Anonymous sign-in unavailable:',e.message);
+      }
     }
-    // Persistent anonymous identity for visitors who do not want an account.
-    // Firestore can then enforce one rating per anonymous visitor.
-    try{ await firebase.auth().signInAnonymously(); }catch(e){ /* local fallback remains active */ }
   });
 }else{
   // FIREBASE_CONFIG still has placeholder values — surface the setup notice.

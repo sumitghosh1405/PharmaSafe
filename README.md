@@ -58,38 +58,21 @@ wrapping this same code with **Capacitor** (capacitorjs.com):
 That packaging and signing step has to happen on your own machine — it's
 outside what can be done in this chat.
 
-## Feedback and one-rating-per-user setup
+## Feedback and one-time ratings
 
-The app now:
+- A visitor is automatically given a Firebase Anonymous Authentication identity when Firebase is configured.
+- A signed-in account also has its own Firebase UID.
+- The `ratings/{uid}` Firestore document allows one rating per UID. Ratings cannot be updated or deleted.
+- Written feedback is **not stored in Firestore** and is unlimited. Every feedback submission opens Gmail addressed to `pharmasafe.info@gmail.com`.
+- The Gmail subject is `PharmaSafe feedback`, and the email body contains **only the text typed by the user**. It does not include the star rating, page URL, email address, or other metadata.
+- Gmail requires the user to tap **Send**; a normal website cannot silently send mail through the user's Gmail account.
 
-- opens the **Gmail app** first when a visitor submits feedback; the recipient `pharmasafe.info@gmail.com`, subject, rating, written feedback, and page URL are pre-filled, so the visitor only needs to tap **Send**;
-- falls back to Gmail web compose if the Gmail app cannot be opened;
-- stores each rating under one Firebase UID and blocks a second rating from the same account;
-- gives non-logged-in visitors a Firebase Anonymous UID, so they can rate once without creating an account;
-- links an anonymous visitor to the same UID when they later sign up, preserving the one-rating rule.
+### Firebase setup required
 
-### Firebase settings required
+In Firebase Console:
 
-In **Firebase Console → Authentication → Sign-in method**, enable:
+1. Authentication → Sign-in method → enable **Anonymous**.
+2. Keep **Email/Password** enabled if you want users to create accounts and log in.
+3. Firestore Database → Rules → replace the existing rules with the contents of `firestore.rules`, then **Publish**.
 
-1. **Email/Password**
-2. **Anonymous**
-
-In **Firebase Console → Firestore Database**, create the database and add these rules for the `ratings` collection:
-
-```text
-match /ratings/{userId} {
-  allow read: if request.auth != null;
-  allow create: if request.auth != null
-    && request.auth.uid == userId
-    && request.resource.data.keys().hasOnly(['rating', 'ts'])
-    && request.resource.data.rating is int
-    && request.resource.data.rating >= 1
-    && request.resource.data.rating <= 5;
-  allow update, delete: if false;
-}
-```
-
-These rules make the one-rating restriction enforceable on the server instead of relying only on browser JavaScript.
-
-**Important:** the Firebase web `apiKey` in `index.html` is not a password/secret. Security comes from Firebase Authentication and Firestore Security Rules. Never place private service-account keys or other server secrets in this frontend repository.
+The rating collection uses the authenticated Firebase UID as the document ID, so the client cannot choose another user's rating document.
