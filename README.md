@@ -6,7 +6,7 @@ an offline app shell that opens instantly.
 
 ## Hosting
 
-This is live on **GitHub Pages** at `https://sumitghosh1405.github.io/PharmaSafe/`.
+This is live on **GitHub Pages** at `https://pharmasafe.site/`.
 Phones only allow "install to home screen" from a page served over
 **https://**, not a file opened directly on the device — GitHub Pages
 already satisfies that.
