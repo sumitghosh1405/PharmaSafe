@@ -1,4 +1,11 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+// Old GitHub Pages URL now redirects to the real custom domain. Doesn't
+// touch pharmasafe.site itself — only fires when the OLD host is detected.
+if(location.hostname==='sumitghosh1405.github.io'){
+  location.replace('https://pharmasafe.site'+location.pathname.replace(/^\/PharmaSafe/,'')+location.search+location.hash);
+}
+</script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <title>PharmaSafe — Pharmacovigilance Analytics</title>
@@ -14,7 +21,23 @@
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="PharmaSafe — Pharmacovigilance Analytics">
 <meta name="twitter:description" content="Explore FDA AEMS/FAERS adverse-event data with drug safety analysis, signal detection, comparisons, reactions, outcomes, and trends.">
-
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PharmaSafe",
+  "url": "https://pharmasafe.site/",
+  "description": "Pharmacovigilance analytics for FDA AEMS/FAERS adverse-event data — drug safety analysis, signal detection (ROR/PRR), drug comparisons, reaction search, outcome severity, and trend reporting.",
+  "applicationCategory": "HealthApplication",
+  "operatingSystem": "Any (web-based)",
+  "isAccessibleForFree": true,
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}
+</script>
 
 <!-- PWA: installable on Android + iOS home screens -->
 <link rel="manifest" href="manifest.json">
@@ -28,8 +51,9 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 <style>
 :root{
   color-scheme:light;
@@ -110,7 +134,7 @@ nav.side button.active[data-t="recent"]{background:linear-gradient(90deg,#9fcc00
 
 .main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--paper)}
 .topbar{position:sticky;top:0;z-index:4;background:color-mix(in srgb,var(--paper) 90%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:17px 32px;display:flex;justify-content:space-between;align-items:center;gap:14px}
-.topbar h1{font-family:var(--serif);font-size:22px;font-weight:600;margin:0;letter-spacing:-.01em}
+.topbar h1,.topbarTitle{font-family:var(--serif);font-size:22px;font-weight:600;margin:0;letter-spacing:-.01em}
 .topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .dot.live{background:var(--ok);animation:pulse 2s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
@@ -462,7 +486,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
 
   <div class="main">
     <div class="topbar">
-      <h1 id="pageTitle">Overview</h1>
+      <div id="pageTitle" class="topbarTitle">Overview</div>
       <div class="topbar-right">
         <span class="pill" id="agoPill" title="Time since last successful data fetch"><span class="dot live"></span><span id="agoTxt">—</span></span>
         <select id="autoSelect" class="autoselect" onchange="setAutoRefresh(this.value)" title="Auto-refresh interval">
