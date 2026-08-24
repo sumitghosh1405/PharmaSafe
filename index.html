@@ -276,10 +276,10 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(
 .chip.calc:active{transform:scale(.97)}
 .chip.calc .chevron{font-size:10px;opacity:.7}
 #calcModal{position:fixed;inset:0;z-index:55;background:rgba(10,15,14,.55);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .22s ease}
-#calcModal.show{opacity:1}
+#calcModal.show,#feedbackModal.show{opacity:1}
 @media(min-width:700px){#calcModal{align-items:center;padding:24px}}
 .calcbox{position:relative;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:20px 20px 0 0;padding:28px 26px 32px;box-shadow:0 -10px 40px rgba(15,22,20,.25);transform:translateY(100%);transition:transform .28s cubic-bezier(.22,.9,.32,1)}
-#calcModal.show .calcbox{transform:translateY(0)}
+#calcModal.show .calcbox,#feedbackModal.show .calcbox{transform:translateY(0)}
 @media(min-width:700px){.calcbox{border-radius:20px;transform:translateY(14px) scale(.97)}}
 .calcbox::before{content:"";display:block;width:36px;height:4px;border-radius:99px;background:var(--line-strong);margin:0 auto 18px}
 @media(min-width:700px){.calcbox::before{display:none}}
@@ -321,6 +321,17 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(
 .mlbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
 .mval{font-size:12.5px;color:var(--ink-soft);font-family:var(--mono);line-height:1.55;word-break:break-word}
 .mval.prose{font-family:var(--sans)}
+
+/* ---------- feedback ---------- */
+.feedbackTrigger{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:99px;border:1.5px solid var(--line-strong);background:var(--panel);color:var(--ink-soft);font-size:12.5px;font-weight:600;transition:background .15s,border-color .15s}
+.feedbackTrigger svg{color:var(--warn)}
+.feedbackTrigger:hover{background:var(--panel-2);border-color:var(--accent)}
+.starRow{display:flex;gap:6px}
+.star{all:unset;cursor:pointer;font-size:34px;line-height:1;color:var(--line-strong);transition:color .12s,transform .1s}
+.star:hover{transform:scale(1.12)}
+.star.filled{color:var(--warn)}
+#feedbackModal{position:fixed;inset:0;z-index:56;background:rgba(10,15,14,.55);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .22s ease}
+@media(min-width:700px){#feedbackModal{align-items:center;padding:24px}}
 .skiplink{all:unset;display:block;text-align:center;margin-top:16px;font-size:12.5px;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .skiplink:hover{color:var(--ink)}
 .authbrand{font-family:var(--serif);font-weight:600;font-size:24px;text-align:center;margin-bottom:2px}
@@ -451,6 +462,29 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
   </div>
 </div>
 
+<div id="feedbackModal" onclick="if(event.target===this)closeFeedbackModal()">
+  <div class="calcbox" id="feedbackboxContent">
+    <button class="modalclose" onclick="closeFeedbackModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    <div class="calc-eyebrow">Your opinion matters</div>
+    <div class="calc-title">Rate PharmaSafe</div>
+    <p class="note" style="margin:-4px 0 16px">Quick rating plus anything you'd like to tell us — goes straight to the project team.</p>
+
+    <div id="starRow" class="starRow">
+      <button type="button" class="star" data-v="1" onclick="setFeedbackRating(1)" aria-label="1 star">★</button>
+      <button type="button" class="star" data-v="2" onclick="setFeedbackRating(2)" aria-label="2 stars">★</button>
+      <button type="button" class="star" data-v="3" onclick="setFeedbackRating(3)" aria-label="3 stars">★</button>
+      <button type="button" class="star" data-v="4" onclick="setFeedbackRating(4)" aria-label="4 stars">★</button>
+      <button type="button" class="star" data-v="5" onclick="setFeedbackRating(5)" aria-label="5 stars">★</button>
+    </div>
+
+    <label style="margin-top:16px">Your feedback (optional)</label>
+    <textarea id="feedbackText" rows="4" placeholder="What worked well, what didn't, what you'd add..." style="width:100%;padding:12px 13px;border:1.5px solid var(--line-strong);border-radius:var(--radius-sm);font-family:var(--sans);font-size:14.5px;background:var(--panel);color:var(--ink);resize:vertical"></textarea>
+
+    <button class="btn" id="feedbackSubmitBtn" onclick="submitFeedback()" style="margin-top:14px;width:100%">Submit feedback</button>
+    <p class="note" id="feedbackStatus" style="margin-top:10px"></p>
+  </div>
+</div>
+
 <div id="appShell">
 <div id="drugAcBox" role="listbox"></div>
 <div class="installbar" id="androidInstall">
@@ -524,6 +558,13 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
         <div class="card">
           <h3>Responsible interpretation</h3>
           <p class="note">FDA states that adverse-event reports are not extensively validated and do not by themselves establish causality. A single report may list several drugs and reactions without linking a specific drug to a specific outcome. This tool therefore labels every result a <b>statistical screening signal</b>, never a confirmed safety finding — and every ROR/PRR calculation ships with its 95% confidence interval so the uncertainty is visible, not hidden in a single number.</p>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:6px">
+          <button class="feedbackTrigger" onclick="openFeedbackModal()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7L5.8 21l1.6-7L2 9.2l7.1-.6z"/></svg>
+            Rate &amp; give feedback
+          </button>
         </div>
       </section>
 
@@ -1846,6 +1887,93 @@ function closeCalcModal(){
   const m=$('calcModal');
   m.classList.remove('show');
   setTimeout(()=>{ if(!m.classList.contains('show'))m.style.display='none'; },260);
+}
+
+/* ---------- feedback ----------
+   SETUP (one-time, ~2 minutes): this submits directly and silently to your
+   inbox via Formspree (free tier, no backend needed):
+   1. Go to https://formspree.io → sign up free → New Form.
+   2. Set the form's notification email to pharmasafe.info@gmail.com.
+   3. Copy the endpoint it gives you (looks like https://formspree.io/f/xxxxxxx)
+      and paste it below, replacing the placeholder.
+   Until that's done, submissions still work — they just fall back to
+   opening the visitor's own email app pre-addressed to you, which needs
+   them to hit send themselves. */
+const FEEDBACK_ENDPOINT="https://formspree.io/f/YOUR_FORM_ID";
+const feedbackReady=!FEEDBACK_ENDPOINT.includes('YOUR_FORM_ID');
+const FEEDBACK_EMAIL="pharmasafe.info@gmail.com";
+let feedbackRating=0;
+
+function setFeedbackRating(v){
+  feedbackRating=v;
+  document.querySelectorAll('#starRow .star').forEach(s=>{
+    s.classList.toggle('filled', Number(s.dataset.v)<=v);
+  });
+  $('feedbackStatus').textContent='';
+}
+function openFeedbackModal(){
+  const m=$('feedbackModal');
+  m.style.display='flex';
+  requestAnimationFrame(()=>m.classList.add('show'));
+}
+function closeFeedbackModal(){
+  const m=$('feedbackModal');
+  m.classList.remove('show');
+  setTimeout(()=>{ if(!m.classList.contains('show'))m.style.display='none'; },260);
+}
+function mailtoFallback(rating,message){
+  const subject=encodeURIComponent(`PharmaSafe feedback (${rating||'no rating'}${rating?'★':''})`);
+  const body=encodeURIComponent(message||'(no written feedback)');
+  window.location.href=`mailto:${FEEDBACK_EMAIL}?subject=${subject}&body=${body}`;
+}
+async function submitFeedback(){
+  const statusEl=$('feedbackStatus');
+  if(!feedbackRating){
+    statusEl.style.color='var(--signal)';
+    statusEl.textContent='Please select a star rating first.';
+    return;
+  }
+  const message=$('feedbackText').value.trim();
+  const btn=$('feedbackSubmitBtn');
+  btn.disabled=true; btn.textContent='Sending…';
+  statusEl.style.color='var(--muted)';
+  statusEl.textContent='';
+
+  if(feedbackReady){
+    try{
+      const res=await fetch(FEEDBACK_ENDPOINT,{
+        method:'POST',
+        headers:{'Accept':'application/json','Content-Type':'application/json'},
+        body:JSON.stringify({
+          rating:feedbackRating,
+          message:message||'(no written feedback)',
+          page:location.href,
+          user: (typeof currentUser!=='undefined' && currentUser && currentUser.email) ? currentUser.email : 'anonymous'
+        })
+      });
+      if(!res.ok)throw new Error('Formspree responded with an error');
+      statusEl.style.color='var(--ok)';
+      statusEl.textContent='Thank you — your feedback was sent.';
+      setTimeout(()=>{
+        closeFeedbackModal();
+        feedbackRating=0;
+        $('feedbackText').value='';
+        document.querySelectorAll('#starRow .star').forEach(s=>s.classList.remove('filled'));
+        statusEl.textContent='';
+      },1400);
+    }catch(e){
+      statusEl.style.color='var(--warn)';
+      statusEl.textContent='Could not send automatically — opening your email app instead.';
+      mailtoFallback(feedbackRating,message);
+    }finally{
+      btn.disabled=false; btn.textContent='Submit feedback';
+    }
+  }else{
+    mailtoFallback(feedbackRating,message);
+    statusEl.style.color='var(--muted)';
+    statusEl.textContent='Opening your email app to send this — automatic sending isn\u2019t configured yet.';
+    btn.disabled=false; btn.textContent='Submit feedback';
+  }
 }
 
 /* ---------- report viewer ---------- */
