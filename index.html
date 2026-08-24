@@ -1903,6 +1903,7 @@ function closeCalcModal(){
 const FEEDBACK_EMAIL="pharmasafe.info@gmail.com";
 let feedbackRating=0;
 let hasRated=false;
+let savedRating=0;
 let ratingsDb=null, ratingsDbTried=false;
 
 function getRatingsDb(){
@@ -1934,6 +1935,8 @@ async function loadUserRatingStatus(){
   try{
     const snap=await db.collection('ratings').doc(user.uid).get();
     hasRated=snap.exists;
+    savedRating = snap.exists && snap.data() && Number.isFinite(Number(snap.data().rating))
+      ? Number(snap.data().rating) : 0;
   }catch(e){ hasRated=false; }
   updateRatingUI();
   return hasRated;
@@ -1942,12 +1945,16 @@ async function loadUserRatingStatus(){
 function updateRatingUI(){
   const stars=document.querySelectorAll('#starRow .star');
   stars.forEach(s=>{
+    const v=Number(s.dataset.v);
     s.disabled=hasRated;
     s.style.cursor=hasRated?'not-allowed':'';
-    s.style.opacity=hasRated?'0.55':'';
+    s.style.opacity=hasRated?'0.7':'';
+    s.classList.toggle('filled', hasRated ? v<=savedRating : v<=feedbackRating);
   });
   const note=$('ratingLockNote');
-  if(note)note.textContent=hasRated?'You have already rated PharmaSafe. You can still send your response to our project team anytime.':'';
+  if(note)note.textContent=hasRated
+    ? `You have already rated PharmaSafe ${savedRating}/5. You can still send your response to our project team anytime.`
+    : '';
 }
 
 function setFeedbackRating(v){
@@ -1979,27 +1986,12 @@ function openGmailCompose(message){
   const to=encodeURIComponent(FEEDBACK_EMAIL);
   const account=encodeURIComponent(FEEDBACK_EMAIL);
 
-  // On iPhone/iPad, open the installed Gmail app directly and request the
-  // PharmaSafe Gmail account. The Gmail iOS compose URL is an app URL scheme.
-  // If Gmail is not installed (or the app cannot handle the scheme), fall
-  // back to the Gmail web compose page.
+  // Open the installed Gmail app directly using its iOS app URL scheme.
+  // IMPORTANT: there is intentionally NO web-Gmail fallback. This prevents
+  // Safari/iOS from opening mail.google.com or workspace.google.com.
+  // If Gmail is not installed, the app URL simply cannot be handled.
   const gmailAppUrl=`googlegmail:///co?to=${to}&subject=${subject}&body=${body}&account=${account}`;
-  const gmailWebUrl=`https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`;
-
-  let appOpened=false;
-  const onHidden=()=>{ appOpened=true; document.removeEventListener('visibilitychange',onHidden); };
-  document.addEventListener('visibilitychange',onHidden);
-
-  // Custom URL schemes are supported by the Gmail iOS app; web Gmail does
-  // not reliably open a prefilled compose window on mobile Safari.
   window.location.href=gmailAppUrl;
-
-  setTimeout(()=>{
-    document.removeEventListener('visibilitychange',onHidden);
-    if(!appOpened){
-      window.open(gmailWebUrl,'_blank');
-    }
-  },1200);
 }
 
 async function recordRatingOnly(rating){
@@ -2012,11 +2004,13 @@ async function recordRatingOnly(rating){
     const existing=await ref.get();
     if(existing.exists){
       hasRated=true;
+      savedRating=Number(existing.data()?.rating||0);
       updateRatingUI();
       return false;
     }
     await ref.set({rating:Number(rating),ts:firebase.firestore.FieldValue.serverTimestamp()});
     hasRated=true;
+    savedRating=Number(rating);
     updateRatingUI();
     loadRatingSummary();
     return true;

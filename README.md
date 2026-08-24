@@ -63,7 +63,7 @@ outside what can be done in this chat.
 - A visitor is automatically given a Firebase Anonymous Authentication identity when Firebase is configured.
 - A signed-in account also has its own Firebase UID.
 - The `ratings/{uid}` Firestore document allows one rating per UID. Ratings cannot be updated or deleted.
-- Written feedback is **not stored in Firestore** and is unlimited. Every feedback submission opens Gmail addressed to `pharmasafe.info@gmail.com`.
+- Written feedback is **not stored in Firestore** and is unlimited. Every feedback submission attempts to open the installed Gmail app addressed to `pharmasafe.info@gmail.com`; there is intentionally no Gmail website fallback.
 - The Gmail subject is `PharmaSafe feedback`, and the email body contains **only the text typed by the user**. It does not include the star rating, page URL, email address, or other metadata.
 - Gmail requires the user to tap **Send**; a normal website cannot silently send mail through the user's Gmail account.
 
@@ -76,3 +76,7 @@ In Firebase Console:
 3. Firestore Database → Rules → replace the existing rules with the contents of `firestore.rules`, then **Publish**.
 
 The rating collection uses the authenticated Firebase UID as the document ID, so the client cannot choose another user's rating document.
+
+
+### Gmail app-only behavior
+The website uses the Gmail iOS app URL scheme only. It does not open `mail.google.com` or `workspace.google.com` as a fallback. If Gmail is not installed or iOS cannot handle the app scheme, the website cannot open Gmail; the user should install/open the Gmail app.
