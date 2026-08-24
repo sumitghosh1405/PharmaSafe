@@ -8,6 +8,7 @@ if(location.hostname==='sumitghosh1405.github.io'){
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <title>PharmaSafe — Pharmacovigilance Analytics</title>
 <!-- SEO: production custom domain -->
 <meta name="description" content="PharmaSafe — pharmacovigilance analytics for FDA AEMS/FAERS adverse-event data, including drug safety analysis, signal detection, comparisons, reactions, outcomes, and trends.">
@@ -326,6 +327,8 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(
 .feedbackTrigger{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:99px;border:1.5px solid var(--line-strong);background:var(--panel);color:var(--ink-soft);font-size:12.5px;font-weight:600;transition:background .15s,border-color .15s}
 .feedbackTrigger svg{color:var(--warn)}
 .feedbackTrigger:hover{background:var(--panel-2);border-color:var(--accent)}
+.ratingSummary{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink-soft);font-family:var(--mono)}
+.ratingSummary .rs-star{color:var(--warn)}
 .starRow{display:flex;gap:6px}
 .star{all:unset;cursor:pointer;font-size:34px;line-height:1;color:var(--line-strong);transition:color .12s,transform .1s}
 .star:hover{transform:scale(1.12)}
@@ -560,7 +563,8 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
           <p class="note">FDA states that adverse-event reports are not extensively validated and do not by themselves establish causality. A single report may list several drugs and reactions without linking a specific drug to a specific outcome. This tool therefore labels every result a <b>statistical screening signal</b>, never a confirmed safety finding — and every ROR/PRR calculation ships with its 95% confidence interval so the uncertainty is visible, not hidden in a single number.</p>
         </div>
 
-        <div style="display:flex;justify-content:flex-end;margin-top:6px">
+        <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap">
+          <span id="ratingSummary" class="ratingSummary" style="display:none"></span>
           <button class="feedbackTrigger" onclick="openFeedbackModal()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7L5.8 21l1.6-7L2 9.2l7.1-.6z"/></svg>
             Rate &amp; give feedback
@@ -1890,19 +1894,38 @@ function closeCalcModal(){
 }
 
 /* ---------- feedback ----------
-   SETUP (one-time, ~2 minutes): this submits directly and silently to your
-   inbox via Formspree (free tier, no backend needed):
+   SETUP (one-time, ~2 minutes) to get feedback emailed to you automatically:
    1. Go to https://formspree.io → sign up free → New Form.
    2. Set the form's notification email to pharmasafe.info@gmail.com.
    3. Copy the endpoint it gives you (looks like https://formspree.io/f/xxxxxxx)
       and paste it below, replacing the placeholder.
-   Until that's done, submissions still work — they just fall back to
-   opening the visitor's own email app pre-addressed to you, which needs
-   them to hit send themselves. */
+   Until that's done, submissions still work — they just open a
+   pre-addressed Gmail compose window instead of sending silently.
+
+   Star ratings are stored separately in Firestore (same Firebase project
+   as login) purely as {rating, timestamp} — never the written feedback
+   text — so the public rating average can be computed without exposing
+   anyone's comments. Requires Firestore enabled once in the Firebase
+   console (Build → Firestore Database → Create database) with rules
+   allowing create+read on a "ratings" collection. If Firestore isn't
+   enabled yet, the summary badge simply stays hidden — nothing breaks. */
 const FEEDBACK_ENDPOINT="https://formspree.io/f/YOUR_FORM_ID";
 const feedbackReady=!FEEDBACK_ENDPOINT.includes('YOUR_FORM_ID');
 const FEEDBACK_EMAIL="pharmasafe.info@gmail.com";
 let feedbackRating=0;
+let ratingsDb=null, ratingsDbTried=false;
+/* Lazily resolved on first real use (a submit, or the initApp() call at the
+   very end of this script) — never at this point in the file, since
+   firebaseReady isn't declared yet this early and referencing it now would
+   throw, not fail gracefully. */
+function getRatingsDb(){
+  if(ratingsDbTried)return ratingsDb;
+  ratingsDbTried=true;
+  try{
+    if(typeof firebaseReady!=='undefined' && firebaseReady)ratingsDb=firebase.firestore();
+  }catch(e){ ratingsDb=null; }
+  return ratingsDb;
+}
 
 function setFeedbackRating(v){
   feedbackRating=v;
@@ -1921,10 +1944,37 @@ function closeFeedbackModal(){
   m.classList.remove('show');
   setTimeout(()=>{ if(!m.classList.contains('show'))m.style.display='none'; },260);
 }
-function mailtoFallback(rating,message){
+/* Opens Gmail specifically (compose.google.com works on any device — web
+   Gmail if the app isn't installed, or hands off to the Gmail app itself
+   on phones where it is) rather than a plain mailto:, which would let the
+   OS pick whatever mail app happens to be set as default. */
+function openGmailCompose(rating,message){
   const subject=encodeURIComponent(`PharmaSafe feedback (${rating||'no rating'}${rating?'★':''})`);
   const body=encodeURIComponent(message||'(no written feedback)');
-  window.location.href=`mailto:${FEEDBACK_EMAIL}?subject=${subject}&body=${body}`;
+  const url=`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(FEEDBACK_EMAIL)}&su=${subject}&body=${body}`;
+  window.open(url,'_blank');
+}
+async function recordRatingOnly(rating){
+  const db=getRatingsDb();
+  if(!db)return;
+  try{
+    await db.collection('ratings').add({rating, ts:firebase.firestore.FieldValue.serverTimestamp()});
+    loadRatingSummary();
+  }catch(e){ /* silent — summary badge just won't update this time */ }
+}
+async function loadRatingSummary(){
+  const db=getRatingsDb();
+  if(!db)return;
+  try{
+    const snap=await db.collection('ratings').get();
+    let sum=0,count=0;
+    snap.forEach(doc=>{ const r=doc.data().rating; if(typeof r==='number'){sum+=r;count++;} });
+    if(count===0)return;
+    const avg=(sum/count).toFixed(1);
+    const el=$('ratingSummary');
+    el.innerHTML=`<span class="rs-star">★</span> ${avg} · ${count} rating${count===1?'':'s'}`;
+    el.style.display='inline-flex';
+  }catch(e){ /* Firestore not enabled yet, or read blocked by rules — badge stays hidden */ }
 }
 async function submitFeedback(){
   const statusEl=$('feedbackStatus');
@@ -1938,6 +1988,8 @@ async function submitFeedback(){
   btn.disabled=true; btn.textContent='Sending…';
   statusEl.style.color='var(--muted)';
   statusEl.textContent='';
+
+  recordRatingOnly(feedbackRating); // fire-and-forget, independent of email delivery
 
   if(feedbackReady){
     try{
@@ -1962,16 +2014,16 @@ async function submitFeedback(){
         statusEl.textContent='';
       },1400);
     }catch(e){
-      statusEl.style.color='var(--warn)';
-      statusEl.textContent='Could not send automatically — opening your email app instead.';
-      mailtoFallback(feedbackRating,message);
+      statusEl.style.color='var(--ok)';
+      statusEl.textContent='Thank you — opening Gmail to finish sending.';
+      openGmailCompose(feedbackRating,message);
     }finally{
       btn.disabled=false; btn.textContent='Submit feedback';
     }
   }else{
-    mailtoFallback(feedbackRating,message);
-    statusEl.style.color='var(--muted)';
-    statusEl.textContent='Opening your email app to send this — automatic sending isn\u2019t configured yet.';
+    openGmailCompose(feedbackRating,message);
+    statusEl.style.color='var(--ok)';
+    statusEl.textContent='Thank you — opening Gmail to finish sending.';
     btn.disabled=false; btn.textContent='Submit feedback';
   }
 }
@@ -2131,6 +2183,16 @@ function exportRecentCSV(out){csvDownload('pharmasafe_recent_reports.csv',[['id'
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
     navigator.serviceWorker.register('sw.js').catch(()=>{/* non-fatal: shell caching just won't be available */});
+  });
+  // When a new service worker version takes control (e.g. after a fresh
+  // deploy), the page it's already showing was still built by the old one —
+  // reload once so the app actually reflects the new version right away,
+  // instead of only updating on the *next* manual open.
+  let swRefreshed=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(swRefreshed)return;
+    swRefreshed=true;
+    location.reload();
   });
 }
 function dismissInstall(id){$(id).classList.remove('show');}
@@ -2295,6 +2357,7 @@ function initApp(){
   go('home');
   boot();
   setAutoRefresh($('autoSelect').value);
+  loadRatingSummary();
 }
 
 /* Tool-use tracking → shows one skippable sign-in nudge after ~2 tool uses, never for logged-in users */

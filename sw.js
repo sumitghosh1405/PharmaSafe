@@ -1,6 +1,14 @@
-const CACHE = 'pharmasafe-shell-v1';
+// v2: fixed a real staleness bug — v1 used cache-first for index.html
+// itself, so once installed, an updated site never reached devices that
+// already had the app cached (installed home-screen icon included) until
+// this file's own bytes changed enough for the browser to notice. Two
+// fixes: (1) the HTML document now uses network-first, so any online open
+// always gets the current deployed version, falling back to cache only
+// when genuinely offline; (2) the cache name below is versioned, so this
+// deployment itself forces every existing install to detect, install, and
+// activate this new worker immediately instead of silently keeping v1.
+const CACHE = 'pharmasafe-shell-v2';
 const SHELL = [
-  './index.html',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -24,7 +32,27 @@ self.addEventListener('fetch', e => {
   if (url.includes('api.fda.gov') || url.includes('allorigins') || url.includes('corsproxy') || url.includes('codetabs')) {
     return; // let the browser handle it normally
   }
-  // App shell: cache-first, falling back to network, so the UI opens instantly (even offline).
+
+  const isDocument = e.request.mode === 'navigate' || url.endsWith('/index.html') || url.endsWith('.html');
+
+  if (isDocument) {
+    // Network-first: always try to get the current live page when online.
+    // Only fall back to the last cached copy if the network request fails
+    // (genuinely offline), which is the actual point of caching it at all.
+    e.respondWith(
+      fetch(e.request).then(res => {
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, copy));
+        }
+        return res;
+      }).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // Everything else (icons, manifest — rarely change): cache-first is fine,
+  // prioritizing instant load over freshness.
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
