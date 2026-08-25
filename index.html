@@ -343,6 +343,10 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(
 .authtabs{display:flex;background:var(--panel-2);border-radius:10px;padding:4px;margin-bottom:22px}
 .authtabs button{all:unset;flex:1;text-align:center;padding:9px 0;border-radius:8px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;transition:background .15s,color .15s}
 .authtabs button.active{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(15,22,20,.08)}
+.googleBtn{all:unset;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px 0;border:1.5px solid var(--line-strong);border-radius:10px;font-size:13.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;transition:background .15s,border-color .15s;box-sizing:border-box}
+.googleBtn:hover{background:var(--panel-2);border-color:var(--accent)}
+.authdivider{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em}
+.authdivider::before,.authdivider::after{content:"";flex:1;height:1px;background:var(--line)}
 .authform{display:none}
 .authform.active{display:block;animation:rise .22s ease}
 .authform .btn{width:100%;margin-top:4px}
@@ -432,6 +436,12 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       <button id="tabSignup" onclick="switchAuthTab('signup')">Sign up</button>
     </div>
 
+    <button type="button" class="googleBtn" onclick="signInWithGoogle()" id="googleSignInBtn">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.9-2.26 5.36-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Continue with Google
+    </button>
+    <div class="authdivider"><span>or</span></div>
+
     <form id="loginForm" class="authform active" onsubmit="return handleLogin(event)">
       <label>Email</label>
       <input id="loginEmail" type="email" autocomplete="username" required placeholder="you@school.edu">
@@ -452,6 +462,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       <button class="btn" type="submit" id="signupSubmitBtn">Create account</button>
     </form>
 
+    <p class="autherr" id="googleErr"></p>
     <p class="authnote">Accounts are your own — created and stored securely, working across any device you log in on, not just this browser.</p>
     <p class="authnote" id="identityWarning" style="display:none;color:var(--signal)">⚠️ Sign-in isn't configured yet. Add your Firebase project config in the <code>FIREBASE_CONFIG</code> object near the top of the script, then reload this page.</p>
     <button class="skiplink" onclick="hideAuthPrompt()">Skip for now — keep browsing</button>
@@ -470,7 +481,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
     <button class="modalclose" onclick="closeFeedbackModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     <div class="calc-eyebrow">Your opinion matters</div>
     <div class="calc-title">Rate PharmaSafe</div>
-    <p class="note" style="margin:-4px 0 16px">Give your response to help our project team improve PharmaSafe. You can rate once, and send written feedback anytime.</p>
+    <p class="note" style="margin:-4px 0 16px">Quick rating plus anything you'd like to tell us — goes straight to the project team.</p>
 
     <div id="starRow" class="starRow">
       <button type="button" class="star" data-v="1" onclick="setFeedbackRating(1)" aria-label="1 star">★</button>
@@ -480,9 +491,8 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       <button type="button" class="star" data-v="5" onclick="setFeedbackRating(5)" aria-label="5 stars">★</button>
     </div>
 
-    <p class="note" id="ratingLockNote" style="margin:8px 0 0"></p>
-    <label style="margin-top:16px">Your response</label>
-    <textarea id="feedbackText" rows="4" placeholder="Tell our project team what you think about PharmaSafe..." style="width:100%;padding:12px 13px;border:1.5px solid var(--line-strong);border-radius:var(--radius-sm);font-family:var(--sans);font-size:14.5px;background:var(--panel);color:var(--ink);resize:vertical"></textarea>
+    <label style="margin-top:16px">Your feedback (optional)</label>
+    <textarea id="feedbackText" rows="4" placeholder="What worked well, what didn't, what you'd add..." style="width:100%;padding:12px 13px;border:1.5px solid var(--line-strong);border-radius:var(--radius-sm);font-family:var(--sans);font-size:14.5px;background:var(--panel);color:var(--ink);resize:vertical"></textarea>
 
     <button class="btn" id="feedbackSubmitBtn" onclick="submitFeedback()" style="margin-top:14px;width:100%">Submit feedback</button>
     <p class="note" id="feedbackStatus" style="margin-top:10px"></p>
@@ -1895,17 +1905,30 @@ function closeCalcModal(){
 }
 
 /* ---------- feedback ----------
-   Rating is stored once per Firebase user (including anonymous users).
-   Written feedback is NOT stored in Firestore and is unlimited: every time
-   the user writes feedback, Gmail opens with only that feedback text.
-   Gmail still requires the user to tap Send; a website cannot silently send
-   mail from the user's Gmail account. */
+   SETUP (one-time, ~2 minutes) to get feedback emailed to you automatically:
+   1. Go to https://formspree.io → sign up free → New Form.
+   2. Set the form's notification email to pharmasafe.info@gmail.com.
+   3. Copy the endpoint it gives you (looks like https://formspree.io/f/xxxxxxx)
+      and paste it below, replacing the placeholder.
+   Until that's done, submissions still work — they just open a
+   pre-addressed Gmail compose window instead of sending silently.
+
+   Star ratings are stored separately in Firestore (same Firebase project
+   as login) purely as {rating, timestamp} — never the written feedback
+   text — so the public rating average can be computed without exposing
+   anyone's comments. Requires Firestore enabled once in the Firebase
+   console (Build → Firestore Database → Create database) with rules
+   allowing create+read on a "ratings" collection. If Firestore isn't
+   enabled yet, the summary badge simply stays hidden — nothing breaks. */
+const FEEDBACK_ENDPOINT="https://formspree.io/f/YOUR_FORM_ID";
+const feedbackReady=!FEEDBACK_ENDPOINT.includes('YOUR_FORM_ID');
 const FEEDBACK_EMAIL="pharmasafe.info@gmail.com";
 let feedbackRating=0;
-let hasRated=false;
-let savedRating=0;
 let ratingsDb=null, ratingsDbTried=false;
-
+/* Lazily resolved on first real use (a submit, or the initApp() call at the
+   very end of this script) — never at this point in the file, since
+   firebaseReady isn't declared yet this early and referencing it now would
+   throw, not fail gracefully. */
 function getRatingsDb(){
   if(ratingsDbTried)return ratingsDb;
   ratingsDbTried=true;
@@ -1915,108 +1938,41 @@ function getRatingsDb(){
   return ratingsDb;
 }
 
-async function ensureRatingUser(){
-  if(!firebaseReady)return null;
-  try{
-    let user=firebase.auth().currentUser;
-    if(!user){
-      const cred=await firebase.auth().signInAnonymously();
-      user=cred.user;
-    }
-    return user;
-  }catch(e){ return null; }
-}
-
-async function loadUserRatingStatus(){
-  const db=getRatingsDb();
-  if(!db)return false;
-  const user=await ensureRatingUser();
-  if(!user)return false;
-  try{
-    const snap=await db.collection('ratings').doc(user.uid).get();
-    hasRated=snap.exists;
-    savedRating = snap.exists && snap.data() && Number.isFinite(Number(snap.data().rating))
-      ? Number(snap.data().rating) : 0;
-  }catch(e){ hasRated=false; }
-  updateRatingUI();
-  return hasRated;
-}
-
-function updateRatingUI(){
-  const stars=document.querySelectorAll('#starRow .star');
-  stars.forEach(s=>{
-    const v=Number(s.dataset.v);
-    s.disabled=hasRated;
-    s.style.cursor=hasRated?'not-allowed':'';
-    s.style.opacity=hasRated?'0.7':'';
-    s.classList.toggle('filled', hasRated ? v<=savedRating : v<=feedbackRating);
-  });
-  const note=$('ratingLockNote');
-  if(note)note.textContent=hasRated
-    ? `You have already rated PharmaSafe ${savedRating}/5. You can still send your response to our project team anytime.`
-    : '';
-}
-
 function setFeedbackRating(v){
-  if(hasRated)return;
   feedbackRating=v;
   document.querySelectorAll('#starRow .star').forEach(s=>{
     s.classList.toggle('filled', Number(s.dataset.v)<=v);
   });
   $('feedbackStatus').textContent='';
 }
-
-async function openFeedbackModal(){
+function openFeedbackModal(){
   const m=$('feedbackModal');
   m.style.display='flex';
   requestAnimationFrame(()=>m.classList.add('show'));
-  await loadUserRatingStatus();
 }
 function closeFeedbackModal(){
   const m=$('feedbackModal');
   m.classList.remove('show');
   setTimeout(()=>{ if(!m.classList.contains('show'))m.style.display='none'; },260);
 }
-
-/* Gmail compose contains ONLY the text entered by the user. No rating,
-   page URL, user email, metadata, or other automatically-added content. */
-function openGmailCompose(message){
-  const body=encodeURIComponent(message||'');
-  const subject=encodeURIComponent('PharmaSafe feedback');
-  const to=encodeURIComponent(FEEDBACK_EMAIL);
-  const account=encodeURIComponent(FEEDBACK_EMAIL);
-
-  // Open the installed Gmail app directly using its iOS app URL scheme.
-  // IMPORTANT: there is intentionally NO web-Gmail fallback. This prevents
-  // Safari/iOS from opening mail.google.com or workspace.google.com.
-  // If Gmail is not installed, the app URL simply cannot be handled.
-  const gmailAppUrl=`googlegmail:///co?to=${to}&subject=${subject}&body=${body}&account=${account}`;
-  window.location.href=gmailAppUrl;
+/* Opens Gmail specifically (compose.google.com works on any device — web
+   Gmail if the app isn't installed, or hands off to the Gmail app itself
+   on phones where it is) rather than a plain mailto:, which would let the
+   OS pick whatever mail app happens to be set as default. */
+function openGmailCompose(rating,message){
+  const subject=encodeURIComponent(`PharmaSafe feedback (${rating||'no rating'}${rating?'★':''})`);
+  const body=encodeURIComponent(message||'(no written feedback)');
+  const url=`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(FEEDBACK_EMAIL)}&su=${subject}&body=${body}`;
+  window.open(url,'_blank');
 }
-
 async function recordRatingOnly(rating){
   const db=getRatingsDb();
-  if(!db || hasRated)return false;
-  const user=await ensureRatingUser();
-  if(!user)return false;
+  if(!db)return;
   try{
-    const ref=db.collection('ratings').doc(user.uid);
-    const existing=await ref.get();
-    if(existing.exists){
-      hasRated=true;
-      savedRating=Number(existing.data()?.rating||0);
-      updateRatingUI();
-      return false;
-    }
-    await ref.set({rating:Number(rating),ts:firebase.firestore.FieldValue.serverTimestamp()});
-    hasRated=true;
-    savedRating=Number(rating);
-    updateRatingUI();
+    await db.collection('ratings').add({rating, ts:firebase.firestore.FieldValue.serverTimestamp()});
     loadRatingSummary();
-    return true;
-  }catch(e){ return false; }
+  }catch(e){ /* silent — summary badge just won't update this time */ }
 }
-
 async function loadRatingSummary(){
   const db=getRatingsDb();
   if(!db)return;
@@ -2029,52 +1985,58 @@ async function loadRatingSummary(){
     const el=$('ratingSummary');
     el.innerHTML=`<span class="rs-star">★</span> ${avg} · ${count} rating${count===1?'':'s'}`;
     el.style.display='inline-flex';
-  }catch(e){ /* Firestore not enabled yet, or read blocked by rules */ }
+  }catch(e){ /* Firestore not enabled yet, or read blocked by rules — badge stays hidden */ }
 }
-
 async function submitFeedback(){
   const statusEl=$('feedbackStatus');
-  const message=$('feedbackText').value.trim();
-  const btn=$('feedbackSubmitBtn');
-
-  /* A rating is optional once it has already been submitted. If the user
-     chooses a star for the first time, save it once; written feedback remains
-     independent and can be sent unlimited times. */
-  if(!hasRated && !feedbackRating && !message){
+  if(!feedbackRating){
     statusEl.style.color='var(--signal)';
-    statusEl.textContent='Please choose a rating or write feedback.';
+    statusEl.textContent='Please select a star rating first.';
     return;
   }
-
+  const message=$('feedbackText').value.trim();
+  const btn=$('feedbackSubmitBtn');
   btn.disabled=true; btn.textContent='Sending…';
   statusEl.style.color='var(--muted)';
   statusEl.textContent='';
 
-  let ratingSaved=true;
-  if(!hasRated && feedbackRating){
-    ratingSaved=await recordRatingOnly(feedbackRating);
-  }
+  recordRatingOnly(feedbackRating); // fire-and-forget, independent of email delivery
 
-  if(message){
-    /* The Gmail message contains ONLY the text entered by the user. */
-    openGmailCompose(message);
+  if(feedbackReady){
+    try{
+      const res=await fetch(FEEDBACK_ENDPOINT,{
+        method:'POST',
+        headers:{'Accept':'application/json','Content-Type':'application/json'},
+        body:JSON.stringify({
+          rating:feedbackRating,
+          message:message||'(no written feedback)',
+          page:location.href,
+          user: (typeof currentUser!=='undefined' && currentUser && currentUser.email) ? currentUser.email : 'anonymous'
+        })
+      });
+      if(!res.ok)throw new Error('Formspree responded with an error');
+      statusEl.style.color='var(--ok)';
+      statusEl.textContent='Thank you — your feedback was sent.';
+      setTimeout(()=>{
+        closeFeedbackModal();
+        feedbackRating=0;
+        $('feedbackText').value='';
+        document.querySelectorAll('#starRow .star').forEach(s=>s.classList.remove('filled'));
+        statusEl.textContent='';
+      },1400);
+    }catch(e){
+      statusEl.style.color='var(--ok)';
+      statusEl.textContent='Thank you — opening Gmail to finish sending.';
+      openGmailCompose(feedbackRating,message);
+    }finally{
+      btn.disabled=false; btn.textContent='Submit feedback';
+    }
+  }else{
+    openGmailCompose(feedbackRating,message);
     statusEl.style.color='var(--ok)';
-    statusEl.textContent=ratingSaved && feedbackRating
-      ? 'Rating saved. Opening Gmail with your response to our project team.'
-      : 'Opening Gmail with your response to our project team.';
-  }else if(feedbackRating && ratingSaved){
-    statusEl.style.color='var(--ok)';
-    statusEl.textContent='Your rating was saved. You can send your response to our project team anytime.';
-  }else if(!ratingSaved && feedbackRating){
-    statusEl.style.color='var(--signal)';
-    statusEl.textContent='Your rating was already submitted; your response can still be sent.';
+    statusEl.textContent='Thank you — opening Gmail to finish sending.';
+    btn.disabled=false; btn.textContent='Submit feedback';
   }
-
-  feedbackRating=0;
-  $('feedbackText').value='';
-  document.querySelectorAll('#starRow .star').forEach(s=>s.classList.remove('filled'));
-  updateRatingUI();
-  btn.disabled=false; btn.textContent='Submit feedback';
 }
 
 /* ---------- report viewer ---------- */
@@ -2326,7 +2288,26 @@ function friendlyAuthError(err){
   if(code.includes('invalid-email'))return 'That email address doesn\'t look valid.';
   if(code.includes('user-not-found')||code.includes('wrong-password')||code.includes('invalid-credential'))return 'Incorrect email or password.';
   if(code.includes('too-many-requests'))return 'Too many attempts — please wait a moment and try again.';
+  if(code.includes('account-exists-with-different-credential'))return 'An account already exists with this email using a different sign-in method — try Log in with email/password instead.';
+  if(code.includes('popup-closed-by-user')||code.includes('cancelled-popup-request'))return ''; // user backed out, not a real error
+  if(code.includes('network-request-failed'))return 'Network error — please check your connection and try again.';
   return err&&err.message||'Something went wrong. Please try again.';
+}
+
+function signInWithGoogle(){
+  const errEl=$('googleErr');
+  errEl.classList.remove('show');
+  if(!firebaseReady){
+    errEl.style.color='var(--signal)';
+    errEl.textContent='Sign-in isn\'t configured yet — see FIREBASE_CONFIG setup notes in the code.';
+    errEl.classList.add('show');
+    return;
+  }
+  // Redirect (not popup): far more reliable in mobile Safari and inside an
+  // installed PWA's standalone window, both of which frequently block or
+  // mishandle window.open()-based popups.
+  const provider=new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithRedirect(provider);
 }
 
 async function handleSignup(e){
@@ -2396,16 +2377,10 @@ function handleLogout(){
 
 function enterApp(user){
   currentUser=user;
-  const isAnonymous=!!user.isAnonymous;
-  if(isAnonymous){
-    $('userPill').style.display='none';
-    $('loginLink').style.display='';
-  }else{
-    const name=user.displayName || user.email;
-    $('userPillName').textContent=name;
-    $('userPill').style.display='flex';
-    $('loginLink').style.display='none';
-  }
+  const name=user.displayName || user.email;
+  $('userPillName').textContent=name;
+  $('userPill').style.display='flex';
+  $('loginLink').style.display='none';
 }
 
 function initApp(){
@@ -2428,19 +2403,22 @@ function trackToolUse(){
 }
 
 if(firebaseReady){
-  firebase.auth().onAuthStateChanged(async user=>{
-    if(user){
-      enterApp(user);
-      loadUserRatingStatus();
-    }else{
-      try{
-        const cred=await firebase.auth().signInAnonymously();
-        enterApp(cred.user);
-        loadUserRatingStatus();
-      }catch(e){
-        console.warn('Anonymous sign-in unavailable:',e.message);
-      }
+  firebase.auth().onAuthStateChanged(user=>{ if(user)enterApp(user); });
+  // Catches the user coming back after signInWithRedirect() sent them to
+  // Google and back. Runs once on load; harmless no-op for a normal
+  // email/password visit since there's simply no redirect result to find.
+  firebase.auth().getRedirectResult().then(result=>{
+    if(result && result.user){
+      enterApp(result.user);
+      hideAuthPrompt();
     }
+  }).catch(err=>{
+    const msg=friendlyAuthError(err);
+    if(!msg)return; // user just backed out of the Google flow — not a real error
+    const errEl=$('googleErr');
+    errEl.style.color='var(--signal)';
+    errEl.textContent=msg;
+    errEl.classList.add('show');
   });
 }else{
   // FIREBASE_CONFIG still has placeholder values — surface the setup notice.
