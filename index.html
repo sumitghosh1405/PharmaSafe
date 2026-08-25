@@ -436,6 +436,12 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       <button id="tabSignup" onclick="switchAuthTab('signup')">Sign up</button>
     </div>
 
+    <button type="button" class="googleBtn" onclick="signInWithGoogle()" id="googleSignInBtn">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.9-2.26 5.36-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Continue with Google
+    </button>
+    <div class="authdivider"><span>or</span></div>
+
     <form id="loginForm" class="authform active" onsubmit="return handleLogin(event)">
       <label>Email</label>
       <input id="loginEmail" type="email" autocomplete="username" required placeholder="you@school.edu">
@@ -456,6 +462,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
       <button class="btn" type="submit" id="signupSubmitBtn">Create account</button>
     </form>
 
+    <p class="autherr" id="googleErr"></p>
     <p class="authnote">Accounts are your own — created and stored securely, working across any device you log in on, not just this browser.</p>
     <p class="authnote" id="identityWarning" style="display:none;color:var(--signal)">⚠️ Sign-in isn't configured yet. Add your Firebase project config in the <code>FIREBASE_CONFIG</code> object near the top of the script, then reload this page.</p>
     <button class="skiplink" onclick="hideAuthPrompt()">Skip for now — keep browsing</button>
@@ -1286,11 +1293,20 @@ const PROXIES=[
   u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u)
 ];
 let workingMode=null;
+// Short-lived response cache + request de-duplication keep repeated tool calls fast
+// without making stale live-data calls stick around.
+const fdaCache=new Map();
+const fdaInflight=new Map();
+const FDA_CACHE_TTL=15000;
 
 async function rawGet(url,timeoutMs){
-  const fetchPromise=fetch(url,{cache:'no-store'});
-  const timeoutPromise=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timed out')),timeoutMs||15000));
-  return Promise.race([fetchPromise,timeoutPromise]);
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),timeoutMs||7000);
+  try{
+    return await fetch(url,{cache:'no-store',signal:controller.signal});
+  }finally{
+    clearTimeout(timer);
+  }
 }
 async function handleResp(r){
   if(r.status===404){lastFetchAt=Date.now();return {meta:{results:{total:0}},results:[]};}
@@ -1308,21 +1324,40 @@ async function fda(params,base){
     const url=new URL(base||BASE);
     Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));
     const target=url.toString();
-    if(workingMode==='direct')return await handleResp(await rawGet(target));
-    if(typeof workingMode==='number')return await handleResp(await rawGet(PROXIES[workingMode](target)));
-    const attempts=[{mode:'direct',url:target},...PROXIES.map((p,i)=>({mode:i,url:p(target)}))];
-    const errs=[];
-    for(const a of attempts){
-      try{
-        const r=await rawGet(a.url);
+
+    const cached=fdaCache.get(target);
+    if(cached && Date.now()-cached.ts<FDA_CACHE_TTL)return cached.data;
+    if(fdaInflight.has(target))return await fdaInflight.get(target);
+
+    const request=(async()=>{
+      // Do not permanently pin the app to a dead proxy. Every failed request
+      // gets a fresh chance to use direct openFDA or whichever fallback works.
+      const attempts=[{mode:'direct',url:target},...PROXIES.map((p,i)=>({mode:i,url:p(target)}))];
+      const tasks=attempts.map(async a=>{
+        const r=await rawGet(a.url,7000);
         const data=await handleResp(r);
-        workingMode=a.mode;
-        return data;
-      }catch(e){errs.push((typeof a.mode==='number'?'proxy'+a.mode:'direct')+': '+e.message);}
-    }
-    throw Object.assign(new Error('network-blocked'),{isNetworkBlock:true,errs});
+        return {mode:a.mode,data};
+      });
+      try{
+        const winner=await Promise.any(tasks);
+        workingMode=winner.mode;
+        fdaCache.set(target,{ts:Date.now(),data:winner.data});
+        return winner.data;
+      }catch(e){
+        const settled=await Promise.allSettled(tasks);
+        const errs=settled.map((x,i)=>{
+          const mode=attempts[i].mode;
+          return (typeof mode==='number'?'proxy'+mode:'direct')+': '+(x.reason?.message||'request failed');
+        });
+        workingMode=null;
+        throw Object.assign(new Error('network-blocked'),{isNetworkBlock:true,errs});
+      }
+    })();
+    fdaInflight.set(target,request);
+    try{return await request;}finally{fdaInflight.delete(target);}
   }finally{loadEnd();}
 }
+
 async function total(search){
   const p={limit:1}; if(search)p.search=search;
   const x=await fda(p);
@@ -1898,17 +1933,30 @@ function closeCalcModal(){
 }
 
 /* ---------- feedback ----------
-   Universal feedback delivery:
-   1. Save the star rating to Firestore.
-   2. Submit written feedback directly to FormSubmit's AJAX endpoint.
-   3. Never open Gmail, Outlook, Apple Mail, mailto:, or mail.google.com.
-   4. Show a success state in PharmaSafe after the email service accepts it.
-   Works from iPhone, Android, Windows, Mac, desktop, and laptop. */
-const FEEDBACK_ENDPOINT="https://formsubmit.co/ajax/pharmasafe.info@gmail.com";
+   SETUP (one-time, ~2 minutes) to get feedback emailed to you automatically:
+   1. Go to https://formspree.io → sign up free → New Form.
+   2. Set the form's notification email to pharmasafe.info@gmail.com.
+   3. Copy the endpoint it gives you (looks like https://formspree.io/f/xxxxxxx)
+      and paste it below, replacing the placeholder.
+   Until that's done, submissions still work — they just open a
+   pre-addressed Gmail compose window instead of sending silently.
+
+   Star ratings are stored separately in Firestore (same Firebase project
+   as login) purely as {rating, timestamp} — never the written feedback
+   text — so the public rating average can be computed without exposing
+   anyone's comments. Requires Firestore enabled once in the Firebase
+   console (Build → Firestore Database → Create database) with rules
+   allowing create+read on a "ratings" collection. If Firestore isn't
+   enabled yet, the summary badge simply stays hidden — nothing breaks. */
+const FEEDBACK_ENDPOINT="https://formspree.io/f/YOUR_FORM_ID";
+const feedbackReady=!FEEDBACK_ENDPOINT.includes('YOUR_FORM_ID');
 const FEEDBACK_EMAIL="pharmasafe.info@gmail.com";
 let feedbackRating=0;
 let ratingsDb=null, ratingsDbTried=false;
-
+/* Lazily resolved on first real use (a submit, or the initApp() call at the
+   very end of this script) — never at this point in the file, since
+   firebaseReady isn't declared yet this early and referencing it now would
+   throw, not fail gracefully. */
 function getRatingsDb(){
   if(ratingsDbTried)return ratingsDb;
   ratingsDbTried=true;
@@ -1925,19 +1973,67 @@ function setFeedbackRating(v){
   });
   $('feedbackStatus').textContent='';
 }
-
 function openFeedbackModal(){
   const m=$('feedbackModal');
   m.style.display='flex';
   requestAnimationFrame(()=>m.classList.add('show'));
 }
-
 function closeFeedbackModal(){
   const m=$('feedbackModal');
   m.classList.remove('show');
   setTimeout(()=>{ if(!m.classList.contains('show'))m.style.display='none'; },260);
 }
+/* Opens the best available Gmail compose experience for the device.
+   iPhone/iPad: Gmail's iOS compose URL scheme.
+   Android: an Android intent targeted at the Gmail package, with a
+   standard mailto fallback if Chrome/Android refuses the intent.
+   Desktop/laptop: mailto, which opens the user's configured mail app.
+   A website cannot force a Gmail app on every desktop/browser. */
+function openGmailCompose(rating,message){
+  const subject=`PharmaSafe feedback (${rating||'no rating'}${rating?'★':''})`;
+  const body=message||'(no written feedback)';
+  const to=FEEDBACK_EMAIL;
+  const subjectEnc=encodeURIComponent(subject);
+  const bodyEnc=encodeURIComponent(body);
+  const mailto=`mailto:${encodeURIComponent(to)}?subject=${subjectEnc}&body=${bodyEnc}`;
+  const statusEl=$('feedbackStatus');
+  statusEl.style.color='var(--ok)';
+  statusEl.textContent='Opening Gmail…';
 
+  const ua=navigator.userAgent||'';
+  const isIOS=/iPad|iPhone|iPod/i.test(ua) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  const isAndroid=/Android/i.test(ua);
+
+  let leftPage=false;
+  const markLeft=()=>{leftPage=true;};
+  window.addEventListener('pagehide',markLeft,{once:true});
+  window.addEventListener('blur',markLeft,{once:true});
+
+  if(isIOS){
+    /* Gmail for iOS compose URL. */
+    const gmailIOS=`googlegmail:///co?to=${encodeURIComponent(to)}&subject=${subjectEnc}&body=${bodyEnc}`;
+    window.location.href=gmailIOS;
+  }else if(isAndroid){
+    /* Android Gmail handles SENDTO/mailto. Target the Gmail package first.
+       This must be launched from the user's Submit tap. */
+    const intentUrl=`intent://send?to=${encodeURIComponent(to)}&subject=${subjectEnc}&body=${bodyEnc}#Intent;scheme=mailto;package=com.google.android.gm;action=android.intent.action.SENDTO;end`;
+    window.location.href=intentUrl;
+  }else{
+    /* Desktop/laptop: there is normally no Gmail app. Use the configured
+       email client rather than redirecting to mail.google.com. */
+    window.location.href=mailto;
+  }
+
+  /* If the app handoff is blocked, fall back to the standard email handler.
+     Never send the user to mail.google.com automatically. */
+  setTimeout(()=>{
+    if(!leftPage && document.visibilityState==='visible'){
+      statusEl.style.color='var(--ok)';
+      statusEl.textContent='Opening your email app…';
+      try{ window.location.href=mailto; }catch(e){}
+    }
+  },1500);
+}
 async function recordRatingOnly(rating){
   const db=getRatingsDb();
   if(!db) throw new Error('Firestore is not initialized. Check Firebase configuration.');
@@ -1957,7 +2053,6 @@ async function recordRatingOnly(rating){
     throw e;
   }
 }
-
 async function loadRatingSummary(){
   const db=getRatingsDb();
   if(!db)return;
@@ -1979,21 +2074,19 @@ async function loadRatingSummary(){
     console.error('PharmaSafe Firestore rating read failed:',e);
   }
 }
-
 function showFirestoreError(statusEl,e){
   const code=e && e.code ? String(e.code) : '';
   statusEl.style.color='var(--signal)';
   if(code.includes('permission-denied')){
-    statusEl.textContent='Rating could not be saved because Firestore permissions are blocking it.';
+    statusEl.textContent='Rating could not be saved because Firestore permissions are blocking it. Please check Firebase Firestore Rules.';
   }else if(code.includes('failed-precondition')){
-    statusEl.textContent='Rating could not be saved because Firestore is not enabled or configured.';
+    statusEl.textContent='Rating could not be saved because Firestore is not enabled or configured. Please enable Firestore Database in Firebase.';
   }else if(code.includes('unavailable')){
     statusEl.textContent='Rating could not be saved right now. Please check your internet connection and try again.';
   }else{
     statusEl.textContent='Rating could not be saved. Please try again.';
   }
 }
-
 async function submitFeedback(){
   const statusEl=$('feedbackStatus');
   if(!feedbackRating){
@@ -2001,79 +2094,55 @@ async function submitFeedback(){
     statusEl.textContent='Please select a star rating first.';
     return;
   }
-
   const message=$('feedbackText').value.trim();
   const btn=$('feedbackSubmitBtn');
   const ratingToSave=feedbackRating;
-
-  btn.disabled=true;
-  btn.textContent='Sending…';
+  btn.disabled=true; btn.textContent='Saving…';
   statusEl.style.color='var(--muted)';
   statusEl.textContent='Saving your rating…';
 
-  /* Save rating first so the public count/average stays synchronized. */
+  /* Firestore is completed BEFORE opening Gmail so the browser cannot leave
+     the page before the rating is actually written. */
   try{
     await recordRatingOnly(ratingToSave);
     await loadRatingSummary();
   }catch(e){
     showFirestoreError(statusEl,e);
-    btn.disabled=false;
-    btn.textContent='Submit feedback';
+    btn.disabled=false; btn.textContent='Submit feedback';
     return;
   }
 
-  /* Send feedback directly from the page. No email application is opened. */
-  try{
-    statusEl.textContent='Sending your feedback…';
+  statusEl.style.color='var(--ok)';
+  statusEl.textContent='Rating saved ✓ Opening Gmail…';
 
-    const formData=new URLSearchParams();
-    formData.set('_subject',`PharmaSafe feedback (${ratingToSave}★)`);
-    formData.set('_template','table');
-    formData.set('_captcha','false');
-    formData.set('Rating',`${ratingToSave} / 5`);
-    formData.set('Feedback',message||'(no written feedback)');
-    formData.set('Page',location.href);
-    if(typeof currentUser!=='undefined' && currentUser && currentUser.email){
-      formData.set('User',currentUser.email);
+  if(feedbackReady){
+    try{
+      const res=await fetch(FEEDBACK_ENDPOINT,{
+        method:'POST',
+        headers:{'Accept':'application/json','Content-Type':'application/json'},
+        body:JSON.stringify({
+          rating:ratingToSave,
+          message:message||'(no written feedback)',
+          page:location.href,
+          user:(typeof currentUser!=='undefined' && currentUser && currentUser.email) ? currentUser.email : 'anonymous'
+        })
+      });
+      if(!res.ok)throw new Error('Formspree responded with an error');
+      statusEl.textContent='Thank you — your feedback was sent.';
+      setTimeout(()=>{
+        closeFeedbackModal();
+        feedbackRating=0;
+        $('feedbackText').value='';
+        document.querySelectorAll('#starRow .star').forEach(s=>s.classList.remove('filled'));
+        statusEl.textContent='';
+      },1400);
+    }catch(e){
+      openGmailCompose(ratingToSave,message);
     }
-
-    const res=await fetch(FEEDBACK_ENDPOINT,{
-      method:'POST',
-      headers:{
-        'Accept':'application/json',
-        'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'
-      },
-      body:formData.toString()
-    });
-
-    let data=null;
-    try{data=await res.json();}catch(_){}
-
-    if(!res.ok || (data && data.success===false)){
-      throw new Error('Feedback email service rejected the submission');
-    }
-
-    statusEl.style.color='var(--ok)';
-    statusEl.textContent='Feedback sent! ✓';
-    btn.textContent='Sent ✓';
-
-    setTimeout(()=>{
-      closeFeedbackModal();
-      feedbackRating=0;
-      $('feedbackText').value='';
-      document.querySelectorAll('#starRow .star').forEach(s=>s.classList.remove('filled'));
-      statusEl.textContent='';
-      btn.disabled=false;
-      btn.textContent='Submit feedback';
-    },1600);
-
-  }catch(e){
-    console.error('PharmaSafe feedback email failed:',e);
-    statusEl.style.color='var(--signal)';
-    statusEl.textContent='Rating saved, but feedback could not be sent. Please try again.';
-    btn.disabled=false;
-    btn.textContent='Submit feedback';
+  }else{
+    openGmailCompose(ratingToSave,message);
   }
+  btn.disabled=false; btn.textContent='Submit feedback';
 }
 /* ---------- report viewer ---------- */
 async function caseView(){
@@ -2339,30 +2408,27 @@ function signInWithGoogle(){
     errEl.classList.add('show');
     return;
   }
-
   const provider=new firebase.auth.GoogleAuthProvider();
-  provider.setCustomParameters({prompt:'select_account'});
-
-  // Use Google sign-in as a popup only.  Do NOT fall back to
-  // signInWithRedirect(): on GitHub Pages/custom-domain PWAs that fallback
-  // can leave the user on Firebase's firebaseapp.com helper page instead of
-  // showing the Google account chooser.
+  // Popup first: works reliably in a normal browser tab, and — importantly —
+  // avoids a known failure mode of signInWithRedirect inside an installed
+  // standalone PWA, where Firebase's pre-redirect state write can silently
+  // no-op instead of throwing, which looks like "the button does nothing."
   firebase.auth().signInWithPopup(provider).then(result=>{
     enterApp(result.user);
     hideAuthPrompt();
   }).catch(err=>{
     const code=err&&err.code||'';
-    if(code.includes('popup-closed-by-user') || code.includes('cancelled-popup-request')){
-      return; // user intentionally closed the Google sign-in window
+    const popupFailed=['popup-blocked','popup-closed-by-user','cancelled-popup-request','operation-not-supported-in-this-environment'].some(c=>code.includes(c));
+    if(popupFailed){
+      // Popup couldn't run in this context — try redirect as a second attempt.
+      firebase.auth().signInWithRedirect(provider).catch(()=>{
+        errEl.style.color='var(--signal)';
+        errEl.textContent='Could not open Google sign-in here. Try opening pharmasafe.site directly in Safari or Chrome, rather than the installed app icon.';
+        errEl.classList.add('show');
+      });
+      return;
     }
-
-    let msg=friendlyAuthError(err);
-    if(code.includes('popup-blocked')){
-      msg='Google sign-in was blocked by your browser. Please allow pop-ups for pharmasafe.site and try again.';
-    }else if(code.includes('operation-not-supported-in-this-environment')){
-      msg='Google sign-in is not available in this browser/app window. Open pharmasafe.site directly in Safari or Chrome and try again.';
-    }
-
+    const msg=friendlyAuthError(err);
     if(!msg)return;
     errEl.style.color='var(--signal)';
     errEl.textContent=msg;
@@ -2464,9 +2530,22 @@ function trackToolUse(){
 
 if(firebaseReady){
   firebase.auth().onAuthStateChanged(user=>{ if(user)enterApp(user); });
-  // Google sign-in is popup-only. No redirect result is processed here,
-  // preventing a redirect to Firebase's firebaseapp.com helper page.
-
+  // Catches the user coming back after signInWithRedirect() sent them to
+  // Google and back. Runs once on load; harmless no-op for a normal
+  // email/password visit since there's simply no redirect result to find.
+  firebase.auth().getRedirectResult().then(result=>{
+    if(result && result.user){
+      enterApp(result.user);
+      hideAuthPrompt();
+    }
+  }).catch(err=>{
+    const msg=friendlyAuthError(err);
+    if(!msg)return; // user just backed out of the Google flow — not a real error
+    const errEl=$('googleErr');
+    errEl.style.color='var(--signal)';
+    errEl.textContent=msg;
+    errEl.classList.add('show');
+  });
 }else{
   // FIREBASE_CONFIG still has placeholder values — surface the setup notice.
   $('identityWarning').style.display='block';
