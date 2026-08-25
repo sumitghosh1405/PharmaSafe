@@ -1955,37 +1955,56 @@ function closeFeedbackModal(){
   m.classList.remove('show');
   setTimeout(()=>{ if(!m.classList.contains('show'))m.style.display='none'; },260);
 }
-/* Opens the Gmail iOS app directly.
-   This intentionally does NOT use mail.google.com, so feedback never
-   redirects to Gmail in the browser. The custom Gmail URL scheme is used
-   only after the user taps Submit feedback. */
+/* Opens the best available Gmail compose experience for the device.
+   iPhone/iPad: Gmail's iOS compose URL scheme.
+   Android: an Android intent targeted at the Gmail package, with a
+   standard mailto fallback if Chrome/Android refuses the intent.
+   Desktop/laptop: mailto, which opens the user's configured mail app.
+   A website cannot force a Gmail app on every desktop/browser. */
 function openGmailCompose(rating,message){
-  const subject=encodeURIComponent(`PharmaSafe feedback (${rating||'no rating'}${rating?'★':''})`);
-  const body=encodeURIComponent(message||'(no written feedback)');
-  const to=encodeURIComponent(FEEDBACK_EMAIL);
-  const gmailAppUrl=`googlegmail://co?to=${to}&subject=${subject}&body=${body}`;
-
+  const subject=`PharmaSafe feedback (${rating||'no rating'}${rating?'★':''})`;
+  const body=message||'(no written feedback)';
+  const to=FEEDBACK_EMAIL;
+  const subjectEnc=encodeURIComponent(subject);
+  const bodyEnc=encodeURIComponent(body);
+  const mailto=`mailto:${encodeURIComponent(to)}?subject=${subjectEnc}&body=${bodyEnc}`;
   const statusEl=$('feedbackStatus');
   statusEl.style.color='var(--ok)';
-  statusEl.textContent='Opening Gmail app…';
+  statusEl.textContent='Opening Gmail…';
+
+  const ua=navigator.userAgent||'';
+  const isIOS=/iPad|iPhone|iPod/i.test(ua) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  const isAndroid=/Android/i.test(ua);
 
   let leftPage=false;
   const markLeft=()=>{leftPage=true;};
   window.addEventListener('pagehide',markLeft,{once:true});
   window.addEventListener('blur',markLeft,{once:true});
 
-  /* The click on Submit is a user gesture, allowing iOS to hand off to
-     the installed Gmail app through its custom URL scheme. */
-  window.location.href=gmailAppUrl;
+  if(isIOS){
+    /* Gmail for iOS compose URL. */
+    const gmailIOS=`googlegmail:///co?to=${encodeURIComponent(to)}&subject=${subjectEnc}&body=${bodyEnc}`;
+    window.location.href=gmailIOS;
+  }else if(isAndroid){
+    /* Android Gmail handles SENDTO/mailto. Target the Gmail package first.
+       This must be launched from the user's Submit tap. */
+    const intentUrl=`intent://send?to=${encodeURIComponent(to)}&subject=${subjectEnc}&body=${bodyEnc}#Intent;scheme=mailto;package=com.google.android.gm;action=android.intent.action.SENDTO;end`;
+    window.location.href=intentUrl;
+  }else{
+    /* Desktop/laptop: there is normally no Gmail app. Use the configured
+       email client rather than redirecting to mail.google.com. */
+    window.location.href=mailto;
+  }
 
-  /* If Gmail is not installed, do not fall back to mail.google.com.
-     Keep the user on PharmaSafe and explain what happened instead. */
+  /* If the app handoff is blocked, fall back to the standard email handler.
+     Never send the user to mail.google.com automatically. */
   setTimeout(()=>{
     if(!leftPage && document.visibilityState==='visible'){
-      statusEl.style.color='var(--signal)';
-      statusEl.textContent='Gmail app could not be opened. Please install/open Gmail and try again.';
+      statusEl.style.color='var(--ok)';
+      statusEl.textContent='Opening your email app…';
+      try{ window.location.href=mailto; }catch(e){}
     }
-  },1400);
+  },1500);
 }
 async function recordRatingOnly(rating){
   const db=getRatingsDb();
