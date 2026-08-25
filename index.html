@@ -2303,11 +2303,32 @@ function signInWithGoogle(){
     errEl.classList.add('show');
     return;
   }
-  // Redirect (not popup): far more reliable in mobile Safari and inside an
-  // installed PWA's standalone window, both of which frequently block or
-  // mishandle window.open()-based popups.
   const provider=new firebase.auth.GoogleAuthProvider();
-  firebase.auth().signInWithRedirect(provider);
+  // Popup first: works reliably in a normal browser tab, and — importantly —
+  // avoids a known failure mode of signInWithRedirect inside an installed
+  // standalone PWA, where Firebase's pre-redirect state write can silently
+  // no-op instead of throwing, which looks like "the button does nothing."
+  firebase.auth().signInWithPopup(provider).then(result=>{
+    enterApp(result.user);
+    hideAuthPrompt();
+  }).catch(err=>{
+    const code=err&&err.code||'';
+    const popupFailed=['popup-blocked','popup-closed-by-user','cancelled-popup-request','operation-not-supported-in-this-environment'].some(c=>code.includes(c));
+    if(popupFailed){
+      // Popup couldn't run in this context — try redirect as a second attempt.
+      firebase.auth().signInWithRedirect(provider).catch(()=>{
+        errEl.style.color='var(--signal)';
+        errEl.textContent='Could not open Google sign-in here. Try opening pharmasafe.site directly in Safari or Chrome, rather than the installed app icon.';
+        errEl.classList.add('show');
+      });
+      return;
+    }
+    const msg=friendlyAuthError(err);
+    if(!msg)return;
+    errEl.style.color='var(--signal)';
+    errEl.textContent=msg;
+    errEl.classList.add('show');
+  });
 }
 
 async function handleSignup(e){
