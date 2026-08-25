@@ -7,6 +7,7 @@ if(location.hostname==='sumitghosh1405.github.io'){
 }
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <title>PharmaSafe — Pharmacovigilance Analytics</title>
@@ -1933,13 +1934,8 @@ function closeCalcModal(){
 }
 
 /* ---------- feedback ----------
-   SETUP (one-time, ~2 minutes) to get feedback emailed to you automatically:
-   1. Go to https://formspree.io → sign up free → New Form.
-   2. Set the form's notification email to pharmasafe.info@gmail.com.
-   3. Copy the endpoint it gives you (looks like https://formspree.io/f/xxxxxxx)
-      and paste it below, replacing the placeholder.
-   Until that's done, submissions still work — they just open a
-   pre-addressed Gmail compose window instead of sending silently.
+   Feedback is sent silently from the app through FormSubmit to pharmasafe.info@gmail.com.
+   No Gmail/Outlook compose window is opened and no external mail website is launched.
 
    Star ratings are stored separately in Firestore (same Firebase project
    as login) purely as {rating, timestamp} — never the written feedback
@@ -1948,8 +1944,8 @@ function closeCalcModal(){
    console (Build → Firestore Database → Create database) with rules
    allowing create+read on a "ratings" collection. If Firestore isn't
    enabled yet, the summary badge simply stays hidden — nothing breaks. */
-const FEEDBACK_ENDPOINT="https://formspree.io/f/YOUR_FORM_ID";
-const feedbackReady=!FEEDBACK_ENDPOINT.includes('YOUR_FORM_ID');
+const FEEDBACK_ENDPOINT="https://formsubmit.co/ajax/pharmasafe.info@gmail.com";
+const feedbackReady=true;
 const FEEDBACK_EMAIL="pharmasafe.info@gmail.com";
 let feedbackRating=0;
 let ratingsDb=null, ratingsDbTried=false;
@@ -1989,51 +1985,10 @@ function closeFeedbackModal(){
    standard mailto fallback if Chrome/Android refuses the intent.
    Desktop/laptop: mailto, which opens the user's configured mail app.
    A website cannot force a Gmail app on every desktop/browser. */
-function openGmailCompose(rating,message){
-  const subject=`PharmaSafe feedback (${rating||'no rating'}${rating?'★':''})`;
-  const body=message||'(no written feedback)';
-  const to=FEEDBACK_EMAIL;
-  const subjectEnc=encodeURIComponent(subject);
-  const bodyEnc=encodeURIComponent(body);
-  const mailto=`mailto:${encodeURIComponent(to)}?subject=${subjectEnc}&body=${bodyEnc}`;
-  const statusEl=$('feedbackStatus');
-  statusEl.style.color='var(--ok)';
-  statusEl.textContent='Opening Gmail…';
-
-  const ua=navigator.userAgent||'';
-  const isIOS=/iPad|iPhone|iPod/i.test(ua) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
-  const isAndroid=/Android/i.test(ua);
-
-  let leftPage=false;
-  const markLeft=()=>{leftPage=true;};
-  window.addEventListener('pagehide',markLeft,{once:true});
-  window.addEventListener('blur',markLeft,{once:true});
-
-  if(isIOS){
-    /* Gmail for iOS compose URL. */
-    const gmailIOS=`googlegmail:///co?to=${encodeURIComponent(to)}&subject=${subjectEnc}&body=${bodyEnc}`;
-    window.location.href=gmailIOS;
-  }else if(isAndroid){
-    /* Android Gmail handles SENDTO/mailto. Target the Gmail package first.
-       This must be launched from the user's Submit tap. */
-    const intentUrl=`intent://send?to=${encodeURIComponent(to)}&subject=${subjectEnc}&body=${bodyEnc}#Intent;scheme=mailto;package=com.google.android.gm;action=android.intent.action.SENDTO;end`;
-    window.location.href=intentUrl;
-  }else{
-    /* Desktop/laptop: there is normally no Gmail app. Use the configured
-       email client rather than redirecting to mail.google.com. */
-    window.location.href=mailto;
-  }
-
-  /* If the app handoff is blocked, fall back to the standard email handler.
-     Never send the user to mail.google.com automatically. */
-  setTimeout(()=>{
-    if(!leftPage && document.visibilityState==='visible'){
-      statusEl.style.color='var(--ok)';
-      statusEl.textContent='Opening your email app…';
-      try{ window.location.href=mailto; }catch(e){}
-    }
-  },1500);
+function openGmailCompose(){
+  /* Disabled: feedback is sent silently in-app via FormSubmit. */
 }
+
 async function recordRatingOnly(rating){
   const db=getRatingsDb();
   if(!db) throw new Error('Firestore is not initialized. Check Firebase configuration.');
@@ -2113,34 +2068,34 @@ async function submitFeedback(){
   }
 
   statusEl.style.color='var(--ok)';
-  statusEl.textContent='Rating saved ✓ Opening Gmail…';
+  statusEl.textContent='Rating saved ✓ Sending feedback…';
 
-  if(feedbackReady){
-    try{
-      const res=await fetch(FEEDBACK_ENDPOINT,{
-        method:'POST',
-        headers:{'Accept':'application/json','Content-Type':'application/json'},
-        body:JSON.stringify({
-          rating:ratingToSave,
-          message:message||'(no written feedback)',
-          page:location.href,
-          user:(typeof currentUser!=='undefined' && currentUser && currentUser.email) ? currentUser.email : 'anonymous'
-        })
-      });
-      if(!res.ok)throw new Error('Formspree responded with an error');
-      statusEl.textContent='Thank you — your feedback was sent.';
-      setTimeout(()=>{
-        closeFeedbackModal();
-        feedbackRating=0;
-        $('feedbackText').value='';
-        document.querySelectorAll('#starRow .star').forEach(s=>s.classList.remove('filled'));
-        statusEl.textContent='';
-      },1400);
-    }catch(e){
-      openGmailCompose(ratingToSave,message);
-    }
-  }else{
-    openGmailCompose(ratingToSave,message);
+  try{
+    const res=await fetch(FEEDBACK_ENDPOINT,{
+      method:'POST',
+      headers:{'Accept':'application/json','Content-Type':'application/json'},
+      body:JSON.stringify({
+        _subject:`PharmaSafe feedback (${ratingToSave}★)`,
+        _captcha:'false',
+        rating:ratingToSave,
+        message:message||'(no written feedback)',
+        page:location.href,
+        user:(typeof currentUser!=='undefined' && currentUser && currentUser.email) ? currentUser.email : 'anonymous'
+      })
+    });
+    if(!res.ok)throw new Error('FormSubmit responded with an error');
+    statusEl.textContent='Thank you — your feedback was sent.';
+    setTimeout(()=>{
+      closeFeedbackModal();
+      feedbackRating=0;
+      $('feedbackText').value='';
+      document.querySelectorAll('#starRow .star').forEach(s=>s.classList.remove('filled'));
+      statusEl.textContent='';
+    },1400);
+  }catch(e){
+    console.error('PharmaSafe feedback send failed:',e);
+    statusEl.style.color='var(--signal)';
+    statusEl.textContent='Feedback could not be sent right now. Please try again.';
   }
   btn.disabled=false; btn.textContent='Submit feedback';
 }
@@ -2345,7 +2300,8 @@ async function doInstall(){
    3. Project settings (gear icon) → General → "Your apps" → Add app → Web.
       Copy the config object it gives you into FIREBASE_CONFIG below.
    Until you do this, the app still works fully for anonymous browsing —
-   sign-in will just show a setup notice instead of a form. */
+   sign-in will just show a setup notice instead of a form.
+   App Check is initialized below with the production reCAPTCHA Enterprise site key. */
 const FIREBASE_CONFIG={
   apiKey:"AIzaSyC8kBeQ97xUc7ZOnn_Z3hx6UkzDl2AXOOI",
   authDomain:"pharmasafe-ac4f6.firebaseapp.com",
@@ -2353,7 +2309,20 @@ const FIREBASE_CONFIG={
   appId:"1:831408748488:web:b27e8c1b91212c6f2032fd"
 };
 const firebaseReady = FIREBASE_CONFIG.apiKey!=='YOUR_API_KEY' && window.firebase;
-if(firebaseReady)firebase.initializeApp(FIREBASE_CONFIG);
+if(firebaseReady){
+  firebase.initializeApp(FIREBASE_CONFIG);
+
+  // Firebase App Check — reCAPTCHA Enterprise.
+  // The site key is public by design; domain verification is enforced by Google Cloud.
+  const RECAPTCHA_ENTERPRISE_SITE_KEY="6Le3H5gtAAAAAFP401ud8f0fuN962yu8fBPzWW7";
+  if(firebase.appCheck){
+    try{
+      firebase.appCheck().activate(RECAPTCHA_ENTERPRISE_SITE_KEY, true);
+    }catch(e){
+      console.warn('Firebase App Check could not be initialized:', e);
+    }
+  }
+}
 
 let currentUser=null;
 
