@@ -2008,11 +2008,20 @@ function openGmailCompose(rating,message){
 }
 async function recordRatingOnly(rating){
   const db=getRatingsDb();
-  if(!db)return;
+  if(!db) throw new Error('Firestore is not available');
+  const value=Number(rating);
+  if(!Number.isFinite(value) || value<1 || value>5) throw new Error('Invalid rating');
   try{
-    await db.collection('ratings').add({rating, ts:firebase.firestore.FieldValue.serverTimestamp()});
-    loadRatingSummary();
-  }catch(e){ /* silent — summary badge just won't update this time */ }
+    await db.collection('ratings').add({
+      rating:value,
+      ts:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await loadRatingSummary();
+    return true;
+  }catch(e){
+    console.error('PharmaSafe rating save failed:',e);
+    throw e;
+  }
 }
 async function loadRatingSummary(){
   const db=getRatingsDb();
@@ -2026,7 +2035,11 @@ async function loadRatingSummary(){
     const el=$('ratingSummary');
     el.innerHTML=`<span class="rs-star">★</span> ${avg} · ${count} rating${count===1?'':'s'}`;
     el.style.display='inline-flex';
-  }catch(e){ /* Firestore not enabled yet, or read blocked by rules — badge stays hidden */ }
+    return {average:avg,count};
+  }catch(e){
+    console.error('PharmaSafe rating summary failed:',e);
+    return null;
+  }
 }
 async function submitFeedback(){
   const statusEl=$('feedbackStatus');
@@ -2041,7 +2054,17 @@ async function submitFeedback(){
   statusEl.style.color='var(--muted)';
   statusEl.textContent='';
 
-  recordRatingOnly(feedbackRating); // fire-and-forget, independent of email delivery
+  /* IMPORTANT: wait for Firestore before handing the browser to Gmail.
+     Previously this was fire-and-forget, so the Gmail navigation could cancel
+     the Firestore write before it reached the server. */
+  try{
+    await recordRatingOnly(feedbackRating);
+  }catch(e){
+    btn.disabled=false; btn.textContent='Submit feedback';
+    statusEl.style.color='var(--signal)';
+    statusEl.textContent='Rating could not be saved. Please try again.';
+    return;
+  }
 
   if(feedbackReady){
     try{
