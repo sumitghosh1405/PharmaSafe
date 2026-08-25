@@ -2008,18 +2008,20 @@ function openGmailCompose(rating,message){
 }
 async function recordRatingOnly(rating){
   const db=getRatingsDb();
-  if(!db) throw new Error('Firestore is not available');
-  const value=Number(rating);
-  if(!Number.isFinite(value) || value<1 || value>5) throw new Error('Invalid rating');
+  if(!db) throw new Error('Firestore is not initialized. Check Firebase configuration.');
+  const numericRating=Number(rating);
+  if(!Number.isInteger(numericRating) || numericRating<1 || numericRating>5){
+    throw new Error('Invalid rating value.');
+  }
   try{
-    await db.collection('ratings').add({
-      rating:value,
+    const ref=db.collection('ratings').doc();
+    await ref.set({
+      rating:numericRating,
       ts:firebase.firestore.FieldValue.serverTimestamp()
     });
-    await loadRatingSummary();
-    return true;
+    return ref.id;
   }catch(e){
-    console.error('PharmaSafe rating save failed:',e);
+    console.error('PharmaSafe Firestore rating write failed:',e);
     throw e;
   }
 }
@@ -2029,16 +2031,32 @@ async function loadRatingSummary(){
   try{
     const snap=await db.collection('ratings').get();
     let sum=0,count=0;
-    snap.forEach(doc=>{ const r=doc.data().rating; if(typeof r==='number'){sum+=r;count++;} });
-    if(count===0)return;
-    const avg=(sum/count).toFixed(1);
+    snap.forEach(doc=>{
+      const data=doc.data()||{};
+      const r=Number(data.rating);
+      if(Number.isFinite(r) && r>=1 && r<=5){sum+=r;count++;}
+    });
     const el=$('ratingSummary');
+    if(!el)return;
+    if(count===0){el.style.display='none';return;}
+    const avg=(sum/count).toFixed(1);
     el.innerHTML=`<span class="rs-star">★</span> ${avg} · ${count} rating${count===1?'':'s'}`;
     el.style.display='inline-flex';
-    return {average:avg,count};
   }catch(e){
-    console.error('PharmaSafe rating summary failed:',e);
-    return null;
+    console.error('PharmaSafe Firestore rating read failed:',e);
+  }
+}
+function showFirestoreError(statusEl,e){
+  const code=e && e.code ? String(e.code) : '';
+  statusEl.style.color='var(--signal)';
+  if(code.includes('permission-denied')){
+    statusEl.textContent='Rating could not be saved because Firestore permissions are blocking it. Please check Firebase Firestore Rules.';
+  }else if(code.includes('failed-precondition')){
+    statusEl.textContent='Rating could not be saved because Firestore is not enabled or configured. Please enable Firestore Database in Firebase.';
+  }else if(code.includes('unavailable')){
+    statusEl.textContent='Rating could not be saved right now. Please check your internet connection and try again.';
+  }else{
+    statusEl.textContent='Rating could not be saved. Please try again.';
   }
 }
 async function submitFeedback(){
@@ -2050,21 +2068,24 @@ async function submitFeedback(){
   }
   const message=$('feedbackText').value.trim();
   const btn=$('feedbackSubmitBtn');
-  btn.disabled=true; btn.textContent='Sending…';
+  const ratingToSave=feedbackRating;
+  btn.disabled=true; btn.textContent='Saving…';
   statusEl.style.color='var(--muted)';
-  statusEl.textContent='';
+  statusEl.textContent='Saving your rating…';
 
-  /* IMPORTANT: wait for Firestore before handing the browser to Gmail.
-     Previously this was fire-and-forget, so the Gmail navigation could cancel
-     the Firestore write before it reached the server. */
+  /* Firestore is completed BEFORE opening Gmail so the browser cannot leave
+     the page before the rating is actually written. */
   try{
-    await recordRatingOnly(feedbackRating);
+    await recordRatingOnly(ratingToSave);
+    await loadRatingSummary();
   }catch(e){
+    showFirestoreError(statusEl,e);
     btn.disabled=false; btn.textContent='Submit feedback';
-    statusEl.style.color='var(--signal)';
-    statusEl.textContent='Rating could not be saved. Please try again.';
     return;
   }
+
+  statusEl.style.color='var(--ok)';
+  statusEl.textContent='Rating saved ✓ Opening Gmail…';
 
   if(feedbackReady){
     try{
@@ -2072,14 +2093,13 @@ async function submitFeedback(){
         method:'POST',
         headers:{'Accept':'application/json','Content-Type':'application/json'},
         body:JSON.stringify({
-          rating:feedbackRating,
+          rating:ratingToSave,
           message:message||'(no written feedback)',
           page:location.href,
-          user: (typeof currentUser!=='undefined' && currentUser && currentUser.email) ? currentUser.email : 'anonymous'
+          user:(typeof currentUser!=='undefined' && currentUser && currentUser.email) ? currentUser.email : 'anonymous'
         })
       });
       if(!res.ok)throw new Error('Formspree responded with an error');
-      statusEl.style.color='var(--ok)';
       statusEl.textContent='Thank you — your feedback was sent.';
       setTimeout(()=>{
         closeFeedbackModal();
@@ -2089,20 +2109,13 @@ async function submitFeedback(){
         statusEl.textContent='';
       },1400);
     }catch(e){
-      statusEl.style.color='var(--ok)';
-      statusEl.textContent='Thank you — opening Gmail to finish sending.';
-      openGmailCompose(feedbackRating,message);
-    }finally{
-      btn.disabled=false; btn.textContent='Submit feedback';
+      openGmailCompose(ratingToSave,message);
     }
   }else{
-    openGmailCompose(feedbackRating,message);
-    statusEl.style.color='var(--ok)';
-    statusEl.textContent='Thank you — opening Gmail to finish sending.';
-    btn.disabled=false; btn.textContent='Submit feedback';
+    openGmailCompose(ratingToSave,message);
   }
+  btn.disabled=false; btn.textContent='Submit feedback';
 }
-
 /* ---------- report viewer ---------- */
 async function caseView(){
   await withBtn('caseBtn',async()=>{
