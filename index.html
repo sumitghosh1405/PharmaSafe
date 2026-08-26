@@ -1,24 +1,9 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <script>
-/*
- * Canonical-domain migration:
- * The production URL is https://pharmasafe.site/.
- * The old GitHub Pages project URL must not compete with it in search.
- * On the legacy host, mark the duplicate as noindex and send visitors to
- * the production domain. The production host is never redirected.
- */
-if (location.hostname === 'sumitghosh1405.github.io') {
-  var legacyMeta = document.createElement('meta');
-  legacyMeta.name = 'robots';
-  legacyMeta.content = 'noindex,follow';
-  document.head.appendChild(legacyMeta);
-
-  var target = 'https://pharmasafe.site' +
-    location.pathname.replace(/^\/PharmaSafe(?:\/|$)/, '/') +
-    location.search + location.hash;
-
-  // Give crawlers a chance to see the noindex signal, then move users.
-  setTimeout(function () { location.replace(target); }, 50);
+// Old GitHub Pages URL now redirects to the real custom domain. Doesn't
+// touch pharmasafe.site itself — only fires when the OLD host is detected.
+if(location.hostname==='sumitghosh1405.github.io'){
+  location.replace('https://pharmasafe.site'+location.pathname.replace(/^\/PharmaSafe/,'')+location.search+location.hash);
 }
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -966,11 +951,8 @@ async function rxnormApproximate(name){
   const j=await rxnormGet('/approximateTerm.json?term='+encodeURIComponent(name)+'&maxEntries=5');
   const candidates=j?.approximateGroup?.candidate||[];
   const names=[];
-  for(const c of candidates.slice(0,3)){
-    if(!c.rxcui)continue;
-    const nm=await rxcuiProperName(c.rxcui);
-    if(nm && !names.includes(nm))names.push(nm);
-  }
+  const resolved=await Promise.all(candidates.slice(0,3).map(c=>c.rxcui?rxcuiProperName(c.rxcui):null));
+  for(const nm of resolved)if(nm && !names.includes(nm))names.push(nm);
   return names;
 }
 
@@ -1313,11 +1295,12 @@ let workingMode=null;
 // without making stale live-data calls stick around.
 const fdaCache=new Map();
 const fdaInflight=new Map();
-const FDA_CACHE_TTL=15000;
+// Keep live results fresh while avoiding repeated network work during a search.
+const FDA_CACHE_TTL=60000;
 
 async function rawGet(url,timeoutMs){
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),timeoutMs||7000);
+  const timer=setTimeout(()=>controller.abort(),timeoutMs||4500);
   try{
     return await fetch(url,{cache:'no-store',signal:controller.signal});
   }finally{
@@ -1346,28 +1329,28 @@ async function fda(params,base){
     if(fdaInflight.has(target))return await fdaInflight.get(target);
 
     const request=(async()=>{
-      // Do not permanently pin the app to a dead proxy. Every failed request
-      // gets a fresh chance to use direct openFDA or whichever fallback works.
-      const attempts=[{mode:'direct',url:target},...PROXIES.map((p,i)=>({mode:i,url:p(target)}))];
-      const tasks=attempts.map(async a=>{
-        const r=await rawGet(a.url,7000);
-        const data=await handleResp(r);
-        return {mode:a.mode,data};
-      });
-      try{
-        const winner=await Promise.any(tasks);
-        workingMode=winner.mode;
-        fdaCache.set(target,{ts:Date.now(),data:winner.data});
-        return winner.data;
-      }catch(e){
-        const settled=await Promise.allSettled(tasks);
-        const errs=settled.map((x,i)=>{
-          const mode=attempts[i].mode;
-          return (typeof mode==='number'?'proxy'+mode:'direct')+': '+(x.reason?.message||'request failed');
-        });
-        workingMode=null;
-        throw Object.assign(new Error('network-blocked'),{isNetworkBlock:true,errs});
+      // Fast path: use the last known working transport first, otherwise hit
+      // openFDA directly. Only try proxies after the primary request fails.
+      // This avoids firing 3 extra proxy requests on every successful search.
+      const orderedModes=[];
+      if(workingMode!==null)orderedModes.push(workingMode);
+      if(!orderedModes.includes('direct'))orderedModes.push('direct');
+      for(let i=0;i<PROXIES.length;i++)if(!orderedModes.includes(i))orderedModes.push(i);
+      const errs=[];
+      for(const mode of orderedModes){
+        const url=mode==='direct'?target:PROXIES[mode](target);
+        try{
+          const r=await rawGet(url,4500);
+          const data=await handleResp(r);
+          workingMode=mode;
+          fdaCache.set(target,{ts:Date.now(),data});
+          return data;
+        }catch(e){
+          errs.push((typeof mode==='number'?'proxy'+mode:'direct')+': '+(e?.message||'request failed'));
+        }
       }
+      workingMode=null;
+      throw Object.assign(new Error('network-blocked'),{isNetworkBlock:true,errs});
     })();
     fdaInflight.set(target,request);
     try{return await request;}finally{fdaInflight.delete(target);}
@@ -2067,12 +2050,12 @@ async function submitFeedback(){
   const message=$('feedbackText').value.trim();
   const btn=$('feedbackSubmitBtn');
   const ratingToSave=feedbackRating;
-  btn.disabled=true; btn.textContent='Saving…';
+  btn.disabled=true; btn.textContent='Sending…';
   statusEl.style.color='var(--muted)';
-  statusEl.textContent='Saving your rating…';
+  statusEl.textContent='Sending your feedback…';
 
-  /* Firestore is completed BEFORE opening Gmail so the browser cannot leave
-     the page before the rating is actually written. */
+  // Save the rating first; written feedback is then sent through FormSubmit
+  // without opening Gmail or leaving the page.
   try{
     await recordRatingOnly(ratingToSave);
     await loadRatingSummary();
@@ -2082,38 +2065,76 @@ async function submitFeedback(){
     return;
   }
 
-  statusEl.style.color='var(--ok)';
-  statusEl.textContent='Rating saved ✓ Sending feedback…';
+  const payload={
+    _subject:`PharmaSafe feedback (${ratingToSave}★)`,
+    _captcha:'false',
+    _template:'table',
+    rating:String(ratingToSave),
+    message:message||'(no written feedback)',
+    page:location.href,
+    user:(typeof currentUser!=='undefined' && currentUser && currentUser.email) ? currentUser.email : 'anonymous'
+  };
 
+  let sent=false;
   try{
     const res=await fetch(FEEDBACK_ENDPOINT,{
       method:'POST',
       headers:{'Accept':'application/json','Content-Type':'application/json'},
-      body:JSON.stringify({
-        _subject:`PharmaSafe feedback (${ratingToSave}★)`,
-        _captcha:'false',
-        rating:ratingToSave,
-        message:message||'(no written feedback)',
-        page:location.href,
-        user:(typeof currentUser!=='undefined' && currentUser && currentUser.email) ? currentUser.email : 'anonymous'
-      })
+      body:JSON.stringify(payload),
+      mode:'cors',
+      credentials:'omit',
+      cache:'no-store'
     });
-    if(!res.ok)throw new Error('FormSubmit responded with an error');
-    statusEl.textContent='Thank you — your feedback was sent.';
+    sent=res.ok;
+  }catch(e){
+    console.warn('FormSubmit AJAX unavailable; using hidden-form fallback.',e);
+  }
+
+  if(!sent){
+    // FormSubmit's normal HTML endpoint works even when an AJAX/CORS request
+    // is blocked. The form targets an invisible iframe, so the user stays on
+    // the same page and no mail website or popup is opened.
+    try{
+      const iframe=document.createElement('iframe');
+      iframe.name='pharmasafeFeedbackFrame';
+      iframe.style.cssText='position:absolute;width:0;height:0;border:0;visibility:hidden;';
+      document.body.appendChild(iframe);
+      const form=document.createElement('form');
+      form.method='POST';
+      form.action='https://formsubmit.co/pharmasafe.info@gmail.com';
+      form.target=iframe.name;
+      form.style.display='none';
+      Object.entries(payload).forEach(([k,v])=>{
+        const input=document.createElement('input');
+        input.type='hidden'; input.name=k; input.value=String(v);
+        form.appendChild(input);
+      });
+      document.body.appendChild(form);
+      form.submit();
+      setTimeout(()=>{form.remove();iframe.remove();},8000);
+      sent=true;
+    }catch(e){
+      console.error('PharmaSafe FormSubmit fallback failed:',e);
+    }
+  }
+
+  if(sent){
+    statusEl.style.color='var(--ok)';
+    statusEl.textContent='Thank you — your feedback was sent ✓';
     setTimeout(()=>{
       closeFeedbackModal();
       feedbackRating=0;
       $('feedbackText').value='';
       document.querySelectorAll('#starRow .star').forEach(s=>s.classList.remove('filled'));
       statusEl.textContent='';
-    },1400);
-  }catch(e){
-    console.error('PharmaSafe feedback send failed:',e);
+    },1100);
+  }else{
     statusEl.style.color='var(--signal)';
     statusEl.textContent='Feedback could not be sent right now. Please try again.';
   }
   btn.disabled=false; btn.textContent='Submit feedback';
 }
+
 /* ---------- report viewer ---------- */
 async function caseView(){
   await withBtn('caseBtn',async()=>{
