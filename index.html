@@ -1,9 +1,24 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <script>
-// Old GitHub Pages URL now redirects to the real custom domain. Doesn't
-// touch pharmasafe.site itself — only fires when the OLD host is detected.
-if(location.hostname==='sumitghosh1405.github.io'){
-  location.replace('https://pharmasafe.site'+location.pathname.replace(/^\/PharmaSafe/,'')+location.search+location.hash);
+/*
+ * Canonical-domain migration:
+ * The production URL is https://pharmasafe.site/.
+ * The old GitHub Pages project URL must not compete with it in search.
+ * On the legacy host, mark the duplicate as noindex and send visitors to
+ * the production domain. The production host is never redirected.
+ */
+if (location.hostname === 'sumitghosh1405.github.io') {
+  var legacyMeta = document.createElement('meta');
+  legacyMeta.name = 'robots';
+  legacyMeta.content = 'noindex,follow';
+  document.head.appendChild(legacyMeta);
+
+  var target = 'https://pharmasafe.site' +
+    location.pathname.replace(/^\/PharmaSafe(?:\/|$)/, '/') +
+    location.search + location.hash;
+
+  // Give crawlers a chance to see the noindex signal, then move users.
+  setTimeout(function () { location.replace(target); }, 50);
 }
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>

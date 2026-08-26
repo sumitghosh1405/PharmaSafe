@@ -2,3 +2,5 @@ User-agent: *
 Allow: /
 
 Sitemap: https://pharmasafe.site/sitemap.xml
+
+# Production canonical domain: https://pharmasafe.site/
