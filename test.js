@@ -1,722 +1,15 @@
-<!doctype html><html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<script>
+
 // Old GitHub Pages URL now redirects to the real custom domain. Doesn't
 // touch pharmasafe.site itself — only fires when the OLD host is detected.
 if(location.hostname==='sumitghosh1405.github.io'){
   location.replace('https://pharmasafe.site'+location.pathname.replace(/^\/PharmaSafe/,'')+location.search+location.hash);
 }
-</script>
-<link rel="preconnect" href="https://www.gstatic.com">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://cdn.jsdelivr.net">
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<title>PharmaSafe — Pharmacovigilance Analytics</title>
-<!-- SEO: production custom domain -->
-<meta name="description" content="PharmaSafe — pharmacovigilance analytics for FDA AEMS/FAERS adverse-event data, including drug safety analysis, signal detection, comparisons, reactions, outcomes, and trends.">
-<meta name="robots" content="index,follow">
-<link rel="canonical" href="https://pharmasafe.site/">
-<meta property="og:type" content="website">
-<meta property="og:title" content="PharmaSafe — Pharmacovigilance Analytics">
-<meta property="og:description" content="Explore FDA AEMS/FAERS adverse-event data with drug safety analysis, signal detection, comparisons, reactions, outcomes, and trends.">
-<meta property="og:url" content="https://pharmasafe.site/">
-<meta property="og:site_name" content="PharmaSafe">
-<meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="PharmaSafe — Pharmacovigilance Analytics">
-<meta name="twitter:description" content="Explore FDA AEMS/FAERS adverse-event data with drug safety analysis, signal detection, comparisons, reactions, outcomes, and trends.">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "PharmaSafe",
-  "url": "https://pharmasafe.site/",
-  "description": "Pharmacovigilance analytics for FDA AEMS/FAERS adverse-event data — drug safety analysis, signal detection (ROR/PRR), drug comparisons, reaction search, outcome severity, and trend reporting.",
-  "applicationCategory": "HealthApplication",
-  "operatingSystem": "Any (web-based)",
-  "isAccessibleForFree": true,
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "USD"
-  }
-}
-</script>
 
-<!-- PWA: installable on Android + iOS home screens -->
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0f1615">
-<meta name="color-scheme" content="light dark">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="PharmaSafe">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://cdn.jsdelivr.net">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
-<!-- Google tag (gtag.js) — kept async and positioned after the app's own
-     critical resources so analytics never competes for early bandwidth
-     with fonts/Firebase/Chart.js during first paint. -->
-<link rel="preconnect" href="https://www.googletagmanager.com">
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-F6NNHCWR5X"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-F6NNHCWR5X');
-</script>
-<style>
-:root{
-  color-scheme:light;
-  --ink:#12181b; --ink-soft:#3a4441;
-  --paper:#f3f4ef; --panel:#ffffff; --panel-2:#eef0ea;
-  --line:#dde1d8; --line-strong:#c7cdc0;
-  --muted:#5e6b64;
-  --accent:#0d9488; --accent-dark:#0a6d63; --accent-soft:#d7f5f0;
-  --signal:#e11d48; --signal-soft:#fce4e9;
-  --ok:#059669; --ok-soft:#d9f5ea;
-  --warn:#d97706; --warn-soft:#fdecd2;
-  --radius:14px; --radius-sm:9px;
-  --serif:'Fraunces',Georgia,serif;
-  --sans:'IBM Plex Sans',system-ui,Arial,sans-serif;
-  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
-}
-:root[data-theme="dark"]{
-  color-scheme:dark;
-  --ink:#eef2ef; --ink-soft:#c3cdc7;
-  --paper:#0f1615; --panel:#161f1e; --panel-2:#1c2725;
-  --line:#26332f; --line-strong:#37473f;
-  --muted:#8ea39d;
-  --accent:#2dd4bf; --accent-dark:#5eead4; --accent-soft:#134e4a;
-  --signal:#fb7185; --signal-soft:#3a1f1c;
-  --ok:#34d399; --ok-soft:#173028;
-  --warn:#e0b256; --warn-soft:#332612;
-}
-*{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;transition:background .25s ease,color .25s ease}
-@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 
-/* ---------- shell ---------- */
-.shell{display:flex;min-height:100vh}
-.sidebar{width:256px;flex:none;background:linear-gradient(180deg,#0f1615 0%,#0c1211 100%);color:#dfe6e4;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
-.brandblock{padding:28px 22px 20px;border-bottom:1px solid #ffffff14}
-.brandblock .mark{font-family:var(--serif);font-weight:600;font-size:24px;color:#fff;letter-spacing:.2px}
-.brandblock .mark em{font-style:normal;color:#7fd4c9}
-.brandblock .tag{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#7d928c;margin-top:7px;font-family:var(--mono)}
-nav.side{padding:16px 12px;display:flex;flex-direction:column;gap:2px;flex:1}
-nav.side button{all:unset;cursor:pointer;padding:11px 13px;border-radius:9px;font-size:13.5px;font-weight:500;color:#c7d3d0;display:flex;align-items:center;gap:11px;letter-spacing:.01em;transition:background .15s,color .15s,transform .1s;border-left:2.5px solid transparent}
-nav.side button .n{width:18px;height:18px;flex:none;display:flex;align-items:center;justify-content:center;color:#68807b;transition:color .15s}
-nav.side button .n svg{width:16px;height:16px}
-nav.side button:hover{background:#ffffff0c;color:#fff}
-nav.side button.active{background:linear-gradient(90deg,#0d9488,#0a6d63);color:#fff;border-left-color:#5eead4;box-shadow:0 0 16px rgba(45,212,191,.25)}
-nav.side button.active .n{color:#bfe9e2}
-/* ---------- per-section neon icon identity ---------- */
-nav.side button[data-t="home"] .n{color:#00d9a3}
-nav.side button[data-t="drug"] .n{color:#00c2ff}
-nav.side button[data-t="rxsearch"] .n{color:#ff7a00}
-nav.side button[data-t="compare"] .n{color:#b026ff}
-nav.side button[data-t="signal"] .n{color:#ff2ec4}
-nav.side button[data-t="outcomes"] .n{color:#ffd60a}
-nav.side button[data-t="trend"] .n{color:#3d5dff}
-nav.side button[data-t="case"] .n{color:#22ff6e}
-nav.side button[data-t="leaderboard"] .n{color:#ff1f4b}
-nav.side button[data-t="recent"] .n{color:#c6ff00}
-nav.side button.active[data-t="home"] .n{color:#6dffcf}
-nav.side button.active[data-t="drug"] .n{color:#7ee8ff}
-nav.side button.active[data-t="rxsearch"] .n{color:#ffbb66}
-nav.side button.active[data-t="compare"] .n{color:#e0aaff}
-nav.side button.active[data-t="signal"] .n{color:#ff8fe0}
-nav.side button.active[data-t="outcomes"] .n{color:#fff066}
-nav.side button.active[data-t="trend"] .n{color:#93a6ff}
-nav.side button.active[data-t="case"] .n{color:#8dffb3}
-nav.side button.active[data-t="leaderboard"] .n{color:#ff8fa3}
-nav.side button.active[data-t="recent"] .n{color:#eaff8f}
-nav.side button.active[data-t="home"]{background:linear-gradient(90deg,#00b385,#009468);border-left-color:#6dffcf;box-shadow:0 0 16px rgba(0,217,163,.35)}
-nav.side button.active[data-t="drug"]{background:linear-gradient(90deg,#0091cc,#0077aa);border-left-color:#7ee8ff;box-shadow:0 0 16px rgba(0,194,255,.35)}
-nav.side button.active[data-t="rxsearch"]{background:linear-gradient(90deg,#e66900,#c25700);border-left-color:#ffbb66;box-shadow:0 0 16px rgba(255,122,0,.35)}
-nav.side button.active[data-t="compare"]{background:linear-gradient(90deg,#9d1fe0,#7f19b8);border-left-color:#e0aaff;box-shadow:0 0 16px rgba(176,38,255,.35)}
-nav.side button.active[data-t="signal"]{background:linear-gradient(90deg,#e01ba8,#b81589);border-left-color:#ff8fe0;box-shadow:0 0 16px rgba(255,46,196,.35)}
-nav.side button.active[data-t="outcomes"]{background:linear-gradient(90deg,#b39400,#8f7700);border-left-color:#fff066;box-shadow:0 0 16px rgba(255,214,10,.35)}
-nav.side button.active[data-t="trend"]{background:linear-gradient(90deg,#3348d1,#2a3bab);border-left-color:#93a6ff;box-shadow:0 0 16px rgba(61,93,255,.35)}
-nav.side button.active[data-t="case"]{background:linear-gradient(90deg,#0fcc58,#0da948);border-left-color:#8dffb3;box-shadow:0 0 16px rgba(34,255,110,.35)}
-nav.side button.active[data-t="leaderboard"]{background:linear-gradient(90deg,#e0173f,#b81233);border-left-color:#ff8fa3;box-shadow:0 0 16px rgba(255,31,75,.35)}
-nav.side button.active[data-t="recent"]{background:linear-gradient(90deg,#9fcc00,#82a800);border-left-color:#eaff8f;box-shadow:0 0 16px rgba(198,255,0,.35)}
-.sidefoot{padding:18px 22px 24px;font-size:10.5px;color:#68807b;border-top:1px solid #ffffff14;font-family:var(--mono);line-height:1.7}
 
-.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--paper)}
-.topbar{position:sticky;top:0;z-index:4;background:color-mix(in srgb,var(--paper) 90%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:17px 32px;display:flex;justify-content:space-between;align-items:center;gap:14px}
-.topbar h1,.topbarTitle{font-family:var(--serif);font-size:22px;font-weight:600;margin:0;letter-spacing:-.01em}
-.topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.dot.live{background:var(--ok);animation:pulse 2s ease-in-out infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-.autoselect{font-family:var(--sans);font-size:12px;font-weight:500;padding:7px 9px;border-radius:8px;border:1px solid var(--line-strong);background:var(--panel);color:var(--ink-soft)}
-.autonote{max-width:980px;margin:10px auto 0;padding:0 32px;font-size:11.5px;color:var(--muted);line-height:1.5}
-@media(max-width:900px){.autonote{padding:0 16px}}
-.flash{animation:flashbg 1s ease}
-@keyframes flashbg{0%{background:var(--accent-soft)}100%{background:transparent}}
-.pill{font-family:var(--sans);font-weight:500;font-size:11.5px;padding:6px 12px;border-radius:99px;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-strong);color:var(--muted)}
-.pill.on{border-color:#2f6e4f55;color:var(--ok);background:var(--ok-soft)}
-.pill.off{border-color:#b3261e55;color:var(--signal);background:var(--signal-soft)}
-.dot{width:6px;height:6px;border-radius:50%;background:currentColor}
-.themebtn{all:unset;cursor:pointer;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1px solid var(--line-strong);color:var(--ink-soft);font-size:15px}
-.themebtn:hover{background:var(--panel-2)}
-.loadbar{height:2px;background:var(--accent);width:0%;transition:width .3s ease;position:sticky;top:0;z-index:5}
-.loadbar.active{animation:load 1.1s ease-in-out infinite}
-@keyframes load{0%{width:10%;margin-left:0}50%{width:60%;margin-left:20%}100%{width:10%;margin-left:90%}}
 
-.content{max-width:980px;width:100%;margin:0 auto;padding:30px 32px 70px;flex:1;background:var(--paper)}
-section{display:none;animation:rise .35s ease}
-section.active{display:block}
-@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
-/* ---------- typographic scale ---------- */
-h2{font-family:var(--serif);font-size:26px;font-weight:600;margin:0 0 4px;animation:rise .4s ease .05s both}
-.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin:0 0 8px;display:flex;align-items:center;gap:7px;animation:rise .4s ease both}
-.eyebrow svg{width:15px;height:15px;flex:none}
-.lede{color:var(--muted);font-size:14.5px;line-height:1.6;max-width:62ch;margin:0 0 22px;animation:rise .4s ease .1s both}
-section.active .card{animation:rise .4s ease .16s both}
-
-/* ---------- hero ---------- */
-.hero{padding:40px 36px;border-radius:18px;background:linear-gradient(155deg,#0f1615 0%,#122120 100%);color:#eef1ef;position:relative;overflow:hidden;box-shadow:0 12px 34px rgba(15,22,20,.22)}
-.hero::after{content:"";position:absolute;inset:0;background:
-  radial-gradient(circle at 88% 4%,#1f7d7566,transparent 50%),
-  radial-gradient(circle at 8% 92%,#2f9d8f3d,transparent 45%),
-  radial-gradient(circle at 60% 110%,#7fd4c920,transparent 40%);
-  pointer-events:none}
-.hero::before{content:"";position:absolute;inset:0;background-image:linear-gradient(#ffffff08 1px,transparent 1px),linear-gradient(90deg,#ffffff08 1px,transparent 1px);background-size:26px 26px;mask-image:linear-gradient(180deg,#000 0%,transparent 75%);pointer-events:none}
-.hero .eyebrow{color:#7fd4c9}
-.hero h1{font-family:var(--serif);font-size:36px;line-height:1.15;margin:0 0 13px;font-weight:600;max-width:20ch;position:relative;letter-spacing:-.015em}
-.hero p{max-width:56ch;color:#c3cdc9;line-height:1.65;font-size:14.5px;position:relative}
-.hero .btn{margin-top:20px;position:relative;box-shadow:0 4px 14px rgba(0,0,0,.22);transition:transform .15s,box-shadow .15s,background .15s}
-.hero .btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.28)}
-
-.statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin:22px 0;box-shadow:0 1px 3px rgba(15,22,20,.06)}
-.statgrid .cell{background:var(--panel);padding:19px 20px;transition:background .2s,transform .15s}
-.statgrid .cell:hover{background:var(--panel-2);transform:translateY(-1px)}
-.statgrid .num{font-family:var(--mono);font-size:25px;font-weight:600;letter-spacing:-.01em;background:linear-gradient(135deg,var(--ink) 40%,var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
-.statgrid .lbl{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.4}
-
-.card{position:relative;overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:24px;margin:16px 0;box-shadow:0 1px 2px rgba(15,22,20,.04);transition:background .25s,border-color .25s,box-shadow .25s,transform .2s}
-.card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),#3fb3a7,var(--accent-dark));opacity:.85}
-:root[data-theme="dark"] .card::before{box-shadow:0 0 12px 1px var(--accent);filter:brightness(1.15)}
-.card:hover{box-shadow:0 6px 20px rgba(15,22,20,.08);transform:translateY(-1px)}
-/* ---------- per-section neon identity: card top-edge glow, eyebrow color, h4 bullet ---------- */
-#home .card::before{background:linear-gradient(90deg,#00d9a3,#6dffcf)}
-#drug .card::before{background:linear-gradient(90deg,#00c2ff,#7ee8ff)}
-#rxsearch .card::before{background:linear-gradient(90deg,#ff7a00,#ffbb66)}
-#compare .card::before{background:linear-gradient(90deg,#b026ff,#e0aaff)}
-#signal .card::before{background:linear-gradient(90deg,#ff2ec4,#ff8fe0)}
-#outcomes .card::before{background:linear-gradient(90deg,#ffd60a,#fff066)}
-#trend .card::before{background:linear-gradient(90deg,#3d5dff,#93a6ff)}
-#case .card::before{background:linear-gradient(90deg,#22ff6e,#8dffb3)}
-#leaderboard .card::before{background:linear-gradient(90deg,#ff1f4b,#ff8fa3)}
-#recent .card::before{background:linear-gradient(90deg,#c6ff00,#eaff8f)}
-:root[data-theme="dark"] #home .card::before{box-shadow:0 0 12px 1px #00d9a3;filter:brightness(1.15)}
-:root[data-theme="dark"] #drug .card::before{box-shadow:0 0 12px 1px #00c2ff;filter:brightness(1.15)}
-:root[data-theme="dark"] #rxsearch .card::before{box-shadow:0 0 12px 1px #ff7a00;filter:brightness(1.15)}
-:root[data-theme="dark"] #compare .card::before{box-shadow:0 0 12px 1px #b026ff;filter:brightness(1.15)}
-:root[data-theme="dark"] #signal .card::before{box-shadow:0 0 12px 1px #ff2ec4;filter:brightness(1.15)}
-:root[data-theme="dark"] #outcomes .card::before{box-shadow:0 0 12px 1px #ffd60a;filter:brightness(1.15)}
-:root[data-theme="dark"] #trend .card::before{box-shadow:0 0 12px 1px #3d5dff;filter:brightness(1.15)}
-:root[data-theme="dark"] #case .card::before{box-shadow:0 0 12px 1px #22ff6e;filter:brightness(1.15)}
-:root[data-theme="dark"] #leaderboard .card::before{box-shadow:0 0 12px 1px #ff1f4b;filter:brightness(1.15)}
-:root[data-theme="dark"] #recent .card::before{box-shadow:0 0 12px 1px #c6ff00;filter:brightness(1.15)}
-#home .eyebrow{color:#00b385}
-#drug .eyebrow{color:#0091cc}
-#rxsearch .eyebrow{color:#e66900}
-#compare .eyebrow{color:#9d1fe0}
-#signal .eyebrow{color:#e01ba8}
-#outcomes .eyebrow{color:#b39400}
-#trend .eyebrow{color:#3348d1}
-#case .eyebrow{color:#0fcc58}
-#leaderboard .eyebrow{color:#e0173f}
-#recent .eyebrow{color:#9fcc00}
-:root[data-theme="dark"] #home .eyebrow{color:#6dffcf}
-:root[data-theme="dark"] #drug .eyebrow{color:#7ee8ff}
-:root[data-theme="dark"] #rxsearch .eyebrow{color:#ffbb66}
-:root[data-theme="dark"] #compare .eyebrow{color:#e0aaff}
-:root[data-theme="dark"] #signal .eyebrow{color:#ff8fe0}
-:root[data-theme="dark"] #outcomes .eyebrow{color:#fff066}
-:root[data-theme="dark"] #trend .eyebrow{color:#93a6ff}
-:root[data-theme="dark"] #case .eyebrow{color:#8dffb3}
-:root[data-theme="dark"] #leaderboard .eyebrow{color:#ff8fa3}
-:root[data-theme="dark"] #recent .eyebrow{color:#eaff8f}
-.card h3{font-family:var(--serif);font-weight:600;font-size:19px;margin:0 0 12px}
-.card h4{font-size:12.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:20px 0 10px;font-weight:600}
-.card h4:first-child{margin-top:0}
-.card h4::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:8px;vertical-align:middle}
-#home .card h4::before{background:#00d9a3}
-#drug .card h4::before{background:#00c2ff}
-#rxsearch .card h4::before{background:#ff7a00}
-#compare .card h4::before{background:#b026ff}
-#signal .card h4::before{background:#ff2ec4}
-#outcomes .card h4::before{background:#ffd60a}
-#trend .card h4::before{background:#3d5dff}
-#case .card h4::before{background:#22ff6e}
-#leaderboard .card h4::before{background:#ff1f4b}
-#recent .card h4::before{background:#c6ff00}
-.note{color:var(--muted);font-size:13px;line-height:1.65}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-@media(max-width:700px){.row2,.row3{grid-template-columns:1fr}.statgrid{grid-template-columns:repeat(2,1fr)}}
-
-label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;letter-spacing:.01em}
-input{width:100%;padding:12px 13px;border:1.5px solid var(--line-strong);border-radius:var(--radius-sm);margin:0 0 14px;font-family:var(--sans);font-size:14.5px;background:var(--panel);color:var(--ink)}
-input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
-
-/* ---------- drug-name autocomplete ---------- */
-#drugAcBox{position:absolute;z-index:40;background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(15,22,20,.16);max-height:280px;overflow-y:auto;display:none}
-#drugAcBox .ac-item{padding:9px 13px;font-size:13.5px;font-family:var(--sans);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px}
-#drugAcBox .ac-item:hover,#drugAcBox .ac-item.active{background:var(--accent-soft)}
-#drugAcBox .ac-item b{font-weight:600;color:var(--accent-dark)}
-#drugAcBox .ac-tag{font-size:10.5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);flex:none}
-#drugAcBox .ac-loading{padding:10px 13px;font-size:12.5px;color:var(--muted)}
-#drugAcBox .ac-empty{padding:10px 13px;font-size:12.5px;color:var(--muted)}
-
-/* ---------- auth screen ---------- */
-#authModal{position:fixed;inset:0;z-index:50;background:rgba(10,15,14,.5);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity .22s ease}
-#authModal.show{opacity:1}
-.authbox{position:relative;width:100%;max-width:400px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:34px 32px;box-shadow:0 20px 60px rgba(15,22,20,.28);transform:translateY(14px) scale(.97);transition:transform .22s ease}
-#authModal.show .authbox{transform:translateY(0) scale(1)}
-.modalclose{all:unset;position:absolute;top:14px;right:16px;color:var(--muted);cursor:pointer;padding:7px;border-radius:8px;line-height:1;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s}
-.modalclose:hover{background:var(--panel-2);color:var(--ink)}
-
-/* ---------- ROR/PRR calculation modal ---------- */
-.chip.calc{cursor:pointer;border:1.5px solid var(--accent);background:var(--accent-soft);color:var(--accent-dark);display:inline-flex;align-items:center;gap:7px;transition:transform .12s,filter .12s}
-.chip.calc:hover{filter:brightness(.96)}
-.chip.calc:active{transform:scale(.97)}
-.chip.calc .chevron{font-size:10px;opacity:.7}
-#calcModal{position:fixed;inset:0;z-index:55;background:rgba(10,15,14,.55);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .22s ease}
-#calcModal.show,#feedbackModal.show{opacity:1}
-@media(min-width:700px){#calcModal{align-items:center;padding:24px}}
-.calcbox{position:relative;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:20px 20px 0 0;padding:28px 26px 32px;box-shadow:0 -10px 40px rgba(15,22,20,.25);transform:translateY(100%);transition:transform .28s cubic-bezier(.22,.9,.32,1)}
-#calcModal.show .calcbox,#feedbackModal.show .calcbox{transform:translateY(0)}
-@media(min-width:700px){.calcbox{border-radius:20px;transform:translateY(14px) scale(.97)}}
-.calcbox::before{content:"";display:block;width:36px;height:4px;border-radius:99px;background:var(--line-strong);margin:0 auto 18px}
-@media(min-width:700px){.calcbox::before{display:none}}
-.calc-eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
-.calc-title{font-family:var(--serif);font-size:22px;font-weight:600;margin:0 0 18px}
-.calc-step{background:var(--panel-2);border-radius:12px;padding:14px 16px;margin-bottom:10px}
-.calc-step .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;margin-bottom:6px}
-.calc-step .expr{font-family:var(--mono);font-size:14px;color:var(--ink);line-height:1.7;word-break:break-word}
-.calc-step .expr .eq{color:var(--accent-dark);font-weight:600}
-.calc-result{display:flex;align-items:baseline;gap:10px;background:var(--accent-soft);border-radius:12px;padding:16px 18px;margin:16px 0}
-.calc-result .num{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--accent-dark)}
-.calc-result .lbl2{font-size:12.5px;color:var(--ink-soft)}
-.readpoints{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
-.readpoints li{display:flex;gap:10px;font-size:13px;line-height:1.55;color:var(--ink-soft)}
-.readpoints li .ic{flex:none;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;margin-top:1px}
-.readpoints li .ic.ok{background:var(--ok-soft);color:var(--ok)}
-.readpoints li .ic.warn{background:var(--warn-soft);color:var(--warn)}
-.readpoints li .ic.info{background:var(--accent-soft);color:var(--accent-dark)}
-.screenrule{display:flex;flex-direction:column;gap:8px;margin:14px 0}
-.screenrule .rule{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-radius:10px;background:var(--panel-2);font-size:13px}
-.screenrule .rule .cond{font-family:var(--mono);font-size:12.5px;color:var(--ink-soft)}
-.screenrule .rule .pass{color:var(--ok);font-weight:700;font-size:12px}
-.screenrule .rule .fail{color:var(--signal);font-weight:700;font-size:12px}
-
-/* ---------- Phase 2: search-normalization transparency block ---------- */
-.normblock{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:-6px 0 14px;display:flex;flex-direction:column;gap:6px}
-.normrow{display:flex;gap:10px;font-size:12.5px;line-height:1.5}
-.normlbl{flex:none;width:150px;color:var(--muted);font-weight:600;font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-top:1px}
-.normval{color:var(--ink-soft);font-family:var(--mono);word-break:break-word}
-.normrevert{margin-top:4px;font-size:12px;color:var(--accent-dark);text-decoration:underline;width:fit-content}
-
-/* ---------- Phase 2: Method & Data expandable panel ---------- */
-.methodpanel{margin:16px 0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel)}
-.methodpanel summary{cursor:pointer;padding:11px 16px;font-size:12.5px;font-weight:600;color:var(--accent-dark);list-style:none;user-select:none;display:flex;align-items:center;background:var(--panel-2)}
-.methodpanel summary::-webkit-details-marker{display:none}
-.methodpanel[open] summary{border-bottom:1px solid var(--line)}
-.methodbody{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
-.methodrow{display:flex;flex-direction:column;gap:3px}
-.mlbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
-.mval{font-size:12.5px;color:var(--ink-soft);font-family:var(--mono);line-height:1.55;word-break:break-word}
-.mval.prose{font-family:var(--sans)}
-
-/* ---------- feedback ---------- */
-.feedbackTrigger{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:99px;border:1.5px solid var(--line-strong);background:var(--panel);color:var(--ink-soft);font-size:12.5px;font-weight:600;transition:background .15s,border-color .15s}
-.feedbackTrigger svg{color:var(--warn)}
-.feedbackTrigger:hover{background:var(--panel-2);border-color:var(--accent)}
-.ratingSummary{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink-soft);font-family:var(--mono)}
-.ratingSummary .rs-star{color:var(--warn)}
-.starRow{display:flex;gap:6px}
-.star{all:unset;cursor:pointer;font-size:34px;line-height:1;color:var(--line-strong);transition:color .12s,transform .1s}
-.star:hover{transform:scale(1.12)}
-.star.filled{color:var(--warn)}
-#feedbackModal{position:fixed;inset:0;z-index:56;background:rgba(10,15,14,.55);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .22s ease}
-@media(min-width:700px){#feedbackModal{align-items:center;padding:24px}}
-.skiplink{all:unset;display:block;text-align:center;margin-top:16px;font-size:12.5px;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
-.skiplink:hover{color:var(--ink)}
-.authbrand{font-family:var(--serif);font-weight:600;font-size:24px;text-align:center;margin-bottom:2px}
-.authbrand em{font-style:normal;color:var(--accent)}
-.authsub{text-align:center;color:var(--muted);font-size:12.5px;margin-bottom:26px}
-.authtabs{display:flex;background:var(--panel-2);border-radius:10px;padding:4px;margin-bottom:22px}
-.authtabs button{all:unset;flex:1;text-align:center;padding:9px 0;border-radius:8px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;transition:background .15s,color .15s}
-.authtabs button.active{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(15,22,20,.08)}
-.googleBtn{all:unset;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px 0;border:1.5px solid var(--line-strong);border-radius:10px;font-size:13.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;transition:background .15s,border-color .15s;box-sizing:border-box}
-.googleBtn:hover{background:var(--panel-2);border-color:var(--accent)}
-.authdivider{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em}
-.authdivider::before,.authdivider::after{content:"";flex:1;height:1px;background:var(--line)}
-.authform{display:none}
-.authform.active{display:block;animation:rise .22s ease}
-.authform .btn{width:100%;margin-top:4px}
-.autherr{color:var(--signal);font-size:12.5px;margin:-8px 0 14px;display:none}
-.autherr.show{display:block}
-.authnote{margin-top:18px;font-size:11px;color:var(--muted);line-height:1.6;text-align:center}
-.userpill{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:99px;border:1px solid var(--line-strong);font-size:12px;color:var(--ink-soft);cursor:pointer;transition:background .15s,opacity .2s}
-.userpill:hover{background:var(--panel-2)}
-.loginlink{all:unset;padding:7px 14px;border-radius:99px;border:1px solid var(--line-strong);font-size:12px;font-weight:600;color:var(--accent-dark);cursor:pointer;transition:background .15s}
-.loginlink:hover{background:var(--accent-soft)}
-.btn{border:0;border-radius:var(--radius-sm);padding:12px 19px;background:var(--accent);color:#fff;font-weight:600;font-size:14px;cursor:pointer;font-family:var(--sans);transition:background .15s,transform .1s,box-shadow .15s;box-shadow:0 1px 2px rgba(15,22,20,.08),0 0 0 rgba(13,148,136,0)}
-.btn:hover{background:var(--accent-dark)}
-.btn:not(.gray):not(.ghost):hover{box-shadow:0 4px 14px rgba(13,148,136,.35),0 0 20px rgba(13,148,136,.25)}
-.btn:active{transform:scale(.97)}
-.btn:disabled{opacity:.55;cursor:wait}
-.btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-.btn.gray{background:var(--accent-soft);color:var(--accent-dark);box-shadow:none}
-.btn.gray:hover{filter:brightness(.95)}
-.btn.ghost{background:transparent;color:var(--accent-dark);border:1.5px solid var(--line-strong);padding:8px 14px;font-size:12.5px;box-shadow:none}
-.btn.ghost:hover{background:var(--panel-2);border-color:var(--accent)}
-
-table{width:100%;border-collapse:collapse}
-th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:9px 10px;border-bottom:1.5px solid var(--line-strong);font-weight:600}
-td{padding:10px 10px;border-bottom:1px solid var(--line);font-size:13.5px;vertical-align:top;font-family:var(--sans);color:var(--ink-soft)}
-td:first-child{font-family:var(--sans);color:var(--ink);font-weight:500}
-tr:hover td{background:var(--panel-2)}
-
-.badge{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:99px;background:var(--ok-soft);color:var(--ok);font-weight:600;font-size:13px;font-family:var(--sans)}
-.badge.red{background:var(--signal-soft);color:var(--signal)}
-.err{color:var(--signal);font-weight:600;font-size:13.5px}
-footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-family:var(--sans)}
-
-/* ---------- forest plot ---------- */
-.forest{margin:18px 0 6px}
-.forest svg{width:100%;height:auto;display:block}
-.forest .axis-lbl{font-family:var(--mono);font-size:10.5px;fill:var(--muted)}
-.forest .ref{stroke:var(--line-strong);stroke-width:1;stroke-dasharray:3 3}
-.forest .whisker{stroke:var(--ink-soft);stroke-width:2}
-.forest .cap{stroke:var(--ink-soft);stroke-width:2}
-.forest-legend{display:flex;gap:18px;font-size:11.5px;color:var(--muted);margin-top:6px;flex-wrap:wrap}
-.forest-legend span{display:inline-flex;align-items:center;gap:6px}
-.forest-legend i{width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--accent)}
-
-/* ---------- misc components ---------- */
-.chips{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 18px}
-.chip{border:1px solid var(--line-strong);border-radius:99px;padding:8px 14px;font-size:12.5px;font-family:var(--sans);color:var(--ink-soft);background:var(--panel)}
-.chip b{color:var(--ink);font-weight:600}
-.skel{background:linear-gradient(90deg,var(--panel-2) 25%,var(--line-strong) 37%,var(--panel-2) 63%);background-size:400% 100%;animation:sk 1.3s ease infinite;border-radius:8px}
-@keyframes sk{0%{background-position:100% 0}100%{background-position:0 0}}
-.skel-line{height:14px;margin:8px 0}
-.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
-.vs{display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:20px;color:var(--muted);padding:0 6px}
-.leaderrow{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
-.leaderrow .rank{font-family:var(--mono);color:var(--muted);width:22px;font-size:12.5px}
-.leaderrow .name{flex:1;font-size:13.5px}
-.leaderrow .bar{height:8px;border-radius:4px;background:var(--accent);flex:none}
-.leaderrow .val{font-family:var(--mono);font-size:12px;color:var(--muted);width:60px;text-align:right}
-
-/* ---------- install banner ---------- */
-.installbar{display:none;align-items:center;gap:12px;background:var(--accent);color:#fff;padding:12px 18px;font-size:13px;position:sticky;top:0;z-index:6}
-.installbar.show{display:flex}
-.installbar button{all:unset;cursor:pointer;background:#ffffff2a;padding:7px 13px;border-radius:8px;font-weight:600;font-size:12.5px}
-.installbar .x{margin-left:auto;background:transparent;padding:6px;opacity:.85;display:flex;align-items:center;justify-content:center}
-
-/* ---------- responsive ---------- */
-@media(max-width:900px){
-  .shell{flex-direction:column}
-  .sidebar{width:100%;height:auto;position:sticky;top:0;flex-direction:row;align-items:center;overflow-x:auto}
-  .brandblock{border-bottom:0;border-right:1px solid #ffffff17;padding:14px 16px;white-space:nowrap}
-  .brandblock .tag{display:none}
-  nav.side{flex-direction:row;padding:8px}
-  nav.side button{white-space:nowrap}
-  .sidefoot{display:none}
-  .content{padding:22px 16px 50px}
-  .hero{padding:28px 22px}.hero h1{font-size:27px}
-  .topbar{padding:14px 16px}
-}
-</style></head><body>
-
-<div id="authModal">
-  <div class="authbox">
-    <button class="modalclose" onclick="hideAuthPrompt()" aria-label="Close"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-    <div class="authbrand">Pharma<em>Safe</em></div>
-    <div class="authsub" id="authModalSub">FAERS / AEMS Analytics — academic prototype</div>
-    <div class="authtabs">
-      <button id="tabLogin" class="active" onclick="switchAuthTab('login')">Log in</button>
-      <button id="tabSignup" onclick="switchAuthTab('signup')">Sign up</button>
-    </div>
-
-    <button type="button" class="googleBtn" onclick="signInWithGoogle()" id="googleSignInBtn">
-      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.9-2.26 5.36-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-      Continue with Google
-    </button>
-    <div class="authdivider"><span>or</span></div>
-
-    <form id="loginForm" class="authform active" onsubmit="return handleLogin(event)">
-      <label>Email</label>
-      <input id="loginEmail" type="email" autocomplete="username" required placeholder="you@school.edu">
-      <label>Password</label>
-      <input id="loginPassword" type="password" autocomplete="current-password" required placeholder="••••••••">
-      <p class="autherr" id="loginErr"></p>
-      <button class="btn" type="submit" id="loginSubmitBtn">Log in</button>
-    </form>
-
-    <form id="signupForm" class="authform" onsubmit="return handleSignup(event)">
-      <label>Name</label>
-      <input id="signupName" type="text" autocomplete="name" required placeholder="Jane Doe">
-      <label>Email</label>
-      <input id="signupEmail" type="email" autocomplete="username" required placeholder="you@school.edu">
-      <label>Password</label>
-      <input id="signupPassword" type="password" autocomplete="new-password" required minlength="6" placeholder="At least 6 characters">
-      <p class="autherr" id="signupErr"></p>
-      <button class="btn" type="submit" id="signupSubmitBtn">Create account</button>
-    </form>
-
-    <p class="autherr" id="googleErr"></p>
-    <p class="authnote">Accounts are your own — created and stored securely, working across any device you log in on, not just this browser.</p>
-    <p class="authnote" id="identityWarning" style="display:none;color:var(--signal)">⚠️ Sign-in isn't configured yet. Add your Firebase project config in the <code>FIREBASE_CONFIG</code> object near the top of the script, then reload this page.</p>
-    <button class="skiplink" onclick="hideAuthPrompt()">Skip for now — keep browsing</button>
-  </div>
-</div>
-
-<div id="calcModal" onclick="if(event.target===this)closeCalcModal()">
-  <div class="calcbox" id="calcboxContent">
-    <button class="modalclose" onclick="closeCalcModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-    <div id="calcModalBody"></div>
-  </div>
-</div>
-
-<div id="feedbackModal" onclick="if(event.target===this)closeFeedbackModal()">
-  <div class="calcbox" id="feedbackboxContent">
-    <button class="modalclose" onclick="closeFeedbackModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-    <div class="calc-eyebrow">Your opinion matters</div>
-    <div class="calc-title">Rate PharmaSafe</div>
-    <p class="note" style="margin:-4px 0 16px">Quick rating plus anything you'd like to tell us — goes straight to the project team.</p>
-
-    <div id="starRow" class="starRow">
-      <button type="button" class="star" data-v="1" onclick="setFeedbackRating(1)" aria-label="1 star">★</button>
-      <button type="button" class="star" data-v="2" onclick="setFeedbackRating(2)" aria-label="2 stars">★</button>
-      <button type="button" class="star" data-v="3" onclick="setFeedbackRating(3)" aria-label="3 stars">★</button>
-      <button type="button" class="star" data-v="4" onclick="setFeedbackRating(4)" aria-label="4 stars">★</button>
-      <button type="button" class="star" data-v="5" onclick="setFeedbackRating(5)" aria-label="5 stars">★</button>
-    </div>
-
-    <label style="margin-top:16px">Your feedback (optional)</label>
-    <textarea id="feedbackText" rows="4" placeholder="What worked well, what didn't, what you'd add..." style="width:100%;padding:12px 13px;border:1.5px solid var(--line-strong);border-radius:var(--radius-sm);font-family:var(--sans);font-size:14.5px;background:var(--panel);color:var(--ink);resize:vertical"></textarea>
-
-    <button class="btn" id="feedbackSubmitBtn" onclick="submitFeedback()" style="margin-top:14px;width:100%">Submit feedback</button>
-    <p class="note" id="feedbackStatus" style="margin-top:10px"></p>
-  </div>
-</div>
-
-<div id="appShell">
-<div id="drugAcBox" role="listbox"></div>
-<div class="installbar" id="androidInstall">
-  <span>Install PharmaSafe as an app on this device</span>
-  <button onclick="doInstall()">Install</button>
-  <button class="x" onclick="dismissInstall('androidInstall')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-</div>
-<div class="installbar" id="iosInstall">
-  <span>To install: tap <b>Share</b> → <b>Add to Home Screen</b></span>
-  <button class="x" onclick="dismissInstall('iosInstall')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-</div>
-<div class="loadbar" id="loadbar"></div>
-<div class="shell">
-  <aside class="sidebar">
-    <div class="brandblock">
-      <div class="mark">Pharma<em>Safe</em></div>
-      <div class="tag">FAERS / AEMS Analytics</div>
-    </div>
-    <nav class="side">
-      <button data-t="home" onclick="go('home')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>Overview</button>
-      <button data-t="drug" onclick="go('drug')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="4"/><line x1="12" y1="8" x2="12" y2="16"/></svg></span>Drug analysis</button>
-      <button data-t="rxsearch" onclick="go('rxsearch')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M7.3 10.5h1.6l1-3 1.8 5.5 1-2.5h2"/><line x1="15.3" y1="15.3" x2="20" y2="20"/></svg></span>Reaction search</button>
-      <button data-t="compare" onclick="go('compare')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6.5"/><circle cx="15" cy="12" r="6.5"/></svg></span>Compare drugs</button>
-      <button data-t="signal" onclick="go('signal')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,12 8,12 10,6 14,18 16,12 21,12"/></svg></span>Signal detection</button>
-      <button data-t="outcomes" onclick="go('outcomes')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L21 19 L3 19 Z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="16.7" r="0.6" fill="currentColor" stroke="none"/></svg></span>Outcome severity</button>
-      <button data-t="trend" onclick="go('trend')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,17 9,11 13,15 21,5"/><polyline points="15,5 21,5 21,11"/></svg></span>Trend</button>
-      <button data-t="case" onclick="go('case')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 H16 L20 6 V22 H6 Z"/><line x1="9" y1="12" x2="17" y2="12"/><line x1="9" y1="16" x2="17" y2="16"/></svg></span>Report viewer</button>
-      <button data-t="leaderboard" onclick="go('leaderboard')"><span class="n"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="15" width="4" height="6" rx="1"/></svg></span>Leaderboard</button>
-      <button data-t="recent" onclick="go('recent')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 16,14"/></svg></span>Recent reports</button>
-    </nav>
-    <div class="sidefoot">Source: FDA AEMS/FAERS<br>via openFDA · live queries<br>Not for clinical decisions</div>
-  </aside>
-
-  <div class="main">
-    <div class="topbar">
-      <div id="pageTitle" class="topbarTitle">Overview</div>
-      <div class="topbar-right">
-        <span class="pill" id="agoPill" title="Time since last successful data fetch"><span class="dot live"></span><span id="agoTxt">—</span></span>
-        <select id="autoSelect" class="autoselect" onchange="setAutoRefresh(this.value)" title="Auto-refresh interval">
-          <option value="0">Auto-refresh: Off</option>
-          <option value="60000">Every 1 min</option>
-          <option value="300000" selected>Every 5 min</option>
-          <option value="900000">Every 15 min</option>
-        </select>
-        <button class="btn ghost" id="refreshNowBtn" onclick="refreshNow()" style="padding:7px 12px;font-size:12px">Refresh now</button>
-        <span class="pill" id="statusPill"><span class="dot"></span><span id="statusTxt">Checking connection…</span></span>
-        <button class="loginlink" id="loginLink" onclick="showAuthPrompt()">Log in / Sign up</button>
-        <span class="userpill" id="userPill" onclick="handleLogout()" title="Click to log out" style="display:none"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> <span id="userPillName">—</span> · Log out</span>
-        <button class="themebtn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
-      </div>
-    </div>
-    <div class="autonote" id="autonote">Live mode: this page fetches fresh data on its own — Overview, Recent Reports, and Leaderboard load automatically, and any section you run stays in sync in the background. openFDA's underlying FAERS dataset is refreshed by FDA quarterly, so auto-refresh keeps you current with whatever's in openFDA right now rather than inventing new reports between releases.</div>
-
-    <div class="content">
-
-      <section id="home" class="active">
-        <div class="hero">
-          <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6L4 20a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3L15 8V2"/><line x1="8" y1="2" x2="16" y2="2"/><line x1="8.5" y1="14" x2="15.5" y2="14"/></svg>Research prototype</p>
-          <h1>Statistical screening for real-world adverse event signals</h1>
-          <p>Ten tools for disproportionality screening, drug comparison, and case-level review — built directly on FDA's public AEMS/FAERS adverse-event index.</p>
-          <button class="btn" onclick="go('drug')" style="background:#fff;color:#0e3b3e">Analyze a drug →</button>
-        </div>
-
-        <div class="statgrid">
-          <div class="cell"><div class="num" id="total">—</div><div class="lbl">Public FDA reports indexed</div></div>
-          <div class="cell"><div class="num" id="updated">—</div><div class="lbl">Dataset last updated</div></div>
-          <div class="cell"><div class="num">ROR</div><div class="lbl">Reporting odds ratio</div></div>
-          <div class="cell"><div class="num">PRR</div><div class="lbl">Proportional reporting ratio</div></div>
-        </div>
-
-        <div class="card">
-          <h3>Responsible interpretation</h3>
-          <p class="note">FDA states that adverse-event reports are not extensively validated and do not by themselves establish causality. A single report may list several drugs and reactions without linking a specific drug to a specific outcome. This tool therefore labels every result a <b>statistical screening signal</b>, never a confirmed safety finding — and every ROR/PRR calculation ships with its 95% confidence interval so the uncertainty is visible, not hidden in a single number.</p>
-        </div>
-
-        <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap">
-          <span id="ratingSummary" class="ratingSummary" style="display:none"></span>
-          <button class="feedbackTrigger" onclick="openFeedbackModal()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7L5.8 21l1.6-7L2 9.2l7.1-.6z"/></svg>
-            Rate &amp; give feedback
-          </button>
-        </div>
-      </section>
-
-      <section id="drug">
-        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="4"/><line x1="12" y1="8" x2="12" y2="16"/></svg>02 · Drug analysis</p>
-        <h2>Reaction profile by drug</h2>
-        <p class="lede">Pulls every reaction term reported against a medicinal product, ranked by report volume, plus a live sex breakdown of the patients who experienced them.</p>
-        <div class="card">
-          <label>Generic or medicinal product name</label>
-          <input id="drugName" class="drugac" placeholder="e.g. atorvastatin" autocomplete="off" onkeydown="if(event.key==='Enter')drugSearch()">
-          <button class="btn" id="drugBtn" onclick="drugSearch()">Analyze</button>
-          <div id="drugOut"></div>
-        </div>
-      </section>
-
-      <section id="rxsearch">
-        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M7.3 10.5h1.6l1-3 1.8 5.5 1-2.5h2"/><line x1="15.3" y1="15.3" x2="20" y2="20"/></svg>03 · Reaction search</p>
-        <h2>Drugs implicated by reaction / MedDRA PT</h2>
-        <p class="lede">Search by symptom or MedDRA preferred term instead of by drug — pulls every medicinal product reported against that reaction, ranked by report volume. Plain-language terms (e.g. "heart attack", "throwing up") are matched to their MedDRA PT automatically.</p>
-        <div class="card">
-          <label>Reaction, symptom, or MedDRA preferred term</label>
-          <input id="rxName" class="drugac" data-ac-type="reaction" placeholder="e.g. myalgia, or &quot;muscle pain&quot;" autocomplete="off" onkeydown="if(event.key==='Enter')reactionSearch()">
-          <button class="btn" id="rxBtn" onclick="reactionSearch()">Analyze</button>
-          <div id="rxOut"></div>
-        </div>
-      </section>
-
-      <section id="compare">
-        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6.5"/><circle cx="15" cy="12" r="6.5"/></svg>04 · Compare drugs</p>
-        <h2>Side-by-side comparison</h2>
-        <p class="lede">Compares total report volume and top reaction terms for two drugs, so relative risk profiles are visible at a glance.</p>
-        <div class="card">
-          <div class="row2">
-            <div><label>Drug A</label><input id="cmpA" class="drugac" placeholder="e.g. atorvastatin" autocomplete="off"></div>
-            <div><label>Drug B</label><input id="cmpB" class="drugac" placeholder="e.g. rosuvastatin" autocomplete="off"></div>
-          </div>
-          <button class="btn" id="cmpBtn" onclick="compareDrugs()">Compare</button>
-          <div id="cmpOut"></div>
-        </div>
-      </section>
-
-      <section id="signal">
-        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,12 8,12 10,6 14,18 16,12 21,12"/></svg>05 · Signal detection</p>
-        <h2>Disproportionality screen</h2>
-        <p class="lede">Builds the 2×2 contingency table for a drug–reaction pair across the full FAERS index and computes ROR and PRR with 95% confidence intervals.</p>
-        <div class="card">
-          <div class="row2">
-            <div><label>Drug</label><input id="sigDrug" class="drugac" placeholder="e.g. atorvastatin" autocomplete="off"></div>
-            <div><label>Reaction / MedDRA PT</label><input id="sigRx" class="drugac" data-ac-type="reaction" placeholder="e.g. myalgia, or &quot;muscle pain&quot;" autocomplete="off"></div>
-          </div>
-          <button class="btn" id="sigBtn" onclick="signal()">Calculate</button>
-          <div id="sigOut"></div>
-        </div>
-      </section>
-
-      <section id="outcomes">
-        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L21 19 L3 19 Z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="16.7" r="0.6" fill="currentColor" stroke="none"/></svg>06 · Outcome severity</p>
-        <h2>Serious outcome breakdown</h2>
-        <p class="lede">Shows what share of reports naming this drug were coded as death, hospitalization, disability, life-threatening, or another serious outcome.</p>
-        <div class="card">
-          <label>Drug</label>
-          <input id="outDrug" class="drugac" placeholder="e.g. atorvastatin" autocomplete="off" onkeydown="if(event.key==='Enter')outcomes()">
-          <button class="btn" id="outBtn" onclick="outcomes()">Analyze outcomes</button>
-          <div id="outOut"></div>
-        </div>
-      </section>
-
-      <section id="trend">
-        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,17 9,11 13,15 21,5"/><polyline points="15,5 21,5 21,11"/></svg>07 · Trend</p>
-        <h2>Report volume over time</h2>
-        <p class="lede">Report counts by receive date — useful for spotting reporting spikes after label changes, media coverage, or REMS updates.</p>
-        <div class="card">
-          <label>Drug</label>
-          <input id="trendDrug" class="drugac" placeholder="e.g. atorvastatin" autocomplete="off" onkeydown="if(event.key==='Enter')trend()">
-          <button class="btn" id="trendBtn" onclick="trend()">Load trend</button>
-          <div id="trendMsg"></div>
-          <canvas id="trendChart" style="margin-top:18px"></canvas>
-          <div id="trendMethod"></div>
-        </div>
-      </section>
-
-      <section id="case">
-        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 H16 L20 6 V22 H6 Z"/><line x1="9" y1="12" x2="17" y2="12"/><line x1="9" y1="16" x2="17" y2="16"/></svg>08 · Report viewer</p>
-        <h2>Individual case safety report</h2>
-        <p class="lede">Look up one public FAERS report by its safety report ID and see exactly what was submitted.</p>
-        <div class="card">
-          <label>FDA safety report ID</label>
-          <input id="caseId" placeholder="e.g. 6176304-1" onkeydown="if(event.key==='Enter')caseView()">
-          <button class="btn" id="caseBtn" onclick="caseView()">View report</button>
-          <div id="caseOut"></div>
-        </div>
-      </section>
-
-      <section id="leaderboard">
-        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="15" width="4" height="6" rx="1"/></svg>09 · Leaderboard</p>
-        <h2>Top terms by openFDA aggregation</h2>
-        <p class="lede">The highest-count raw text strings returned by openFDA's own frequency aggregation across the entire public FAERS index — not an independently-verified ranking.</p>
-        <div class="card">
-          <button class="btn" id="leadBtn" onclick="leaderboard()">Load leaderboard</button>
-          <div id="leadOut"></div>
-        </div>
-      </section>
-
-      <section id="recent">
-        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 16,14"/></svg>10 · Recent reports</p>
-        <h2>Latest public submissions</h2>
-        <p class="lede">The 20 most recently received reports in the openFDA index.</p>
-        <div class="card">
-          <button class="btn" id="recentBtn" onclick="recent()">Load recent reports</button>
-          <div id="recentOut"></div>
-        </div>
-      </section>
-
-    </div>
-    <footer>Built for coursework and demonstration. Always confirm findings against a pharmacist, clinician, or the FDA label before acting on them.</footer>
-  </div>
-</div>
-</div>
-
-<script>
 const $=x=>document.getElementById(x);
 const ICONS={
   moon:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
@@ -967,8 +260,11 @@ async function rxnormApproximate(name){
   const j=await rxnormGet('/approximateTerm.json?term='+encodeURIComponent(name)+'&maxEntries=5');
   const candidates=j?.approximateGroup?.candidate||[];
   const names=[];
-  const resolved=await Promise.all(candidates.slice(0,3).map(c=>c.rxcui?rxcuiProperName(c.rxcui):null));
-  for(const nm of resolved)if(nm && !names.includes(nm))names.push(nm);
+  for(const c of candidates.slice(0,3)){
+    if(!c.rxcui)continue;
+    const nm=await rxcuiProperName(c.rxcui);
+    if(nm && !names.includes(nm))names.push(nm);
+  }
   return names;
 }
 
@@ -1303,20 +599,19 @@ function loadEnd(){loadCount=Math.max(0,loadCount-1);if(loadCount===0)$('loadbar
 /* ---------- resilient fetch layer ---------- */
 const PROXIES=[
   u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
-  u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u),
-  u=>'https://corsproxy.io/?url='+encodeURIComponent(u)
+  u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
+  u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u)
 ];
 let workingMode=null;
 // Short-lived response cache + request de-duplication keep repeated tool calls fast
 // without making stale live-data calls stick around.
 const fdaCache=new Map();
 const fdaInflight=new Map();
-// Keep live results fresh while avoiding repeated network work during a search.
-const FDA_CACHE_TTL=60000;
+const FDA_CACHE_TTL=15000;
 
 async function rawGet(url,timeoutMs){
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),timeoutMs||9000);
+  const timer=setTimeout(()=>controller.abort(),timeoutMs||7000);
   try{
     return await fetch(url,{cache:'no-store',signal:controller.signal});
   }finally{
@@ -1345,28 +640,28 @@ async function fda(params,base){
     if(fdaInflight.has(target))return await fdaInflight.get(target);
 
     const request=(async()=>{
-      // Fast path: use the last known working transport first, otherwise hit
-      // openFDA directly. Only try proxies after the primary request fails.
-      // This avoids firing 3 extra proxy requests on every successful search.
-      const orderedModes=[];
-      if(workingMode!==null)orderedModes.push(workingMode);
-      if(!orderedModes.includes('direct'))orderedModes.push('direct');
-      for(let i=0;i<PROXIES.length;i++)if(!orderedModes.includes(i))orderedModes.push(i);
-      const errs=[];
-      for(const mode of orderedModes){
-        const url=mode==='direct'?target:PROXIES[mode](target);
-        try{
-          const r=await rawGet(url,9000);
-          const data=await handleResp(r);
-          workingMode=mode;
-          fdaCache.set(target,{ts:Date.now(),data});
-          return data;
-        }catch(e){
-          errs.push((typeof mode==='number'?'proxy'+mode:'direct')+': '+(e?.message||'request failed'));
-        }
+      // Do not permanently pin the app to a dead proxy. Every failed request
+      // gets a fresh chance to use direct openFDA or whichever fallback works.
+      const attempts=[{mode:'direct',url:target},...PROXIES.map((p,i)=>({mode:i,url:p(target)}))];
+      const tasks=attempts.map(async a=>{
+        const r=await rawGet(a.url,7000);
+        const data=await handleResp(r);
+        return {mode:a.mode,data};
+      });
+      try{
+        const winner=await Promise.any(tasks);
+        workingMode=winner.mode;
+        fdaCache.set(target,{ts:Date.now(),data:winner.data});
+        return winner.data;
+      }catch(e){
+        const settled=await Promise.allSettled(tasks);
+        const errs=settled.map((x,i)=>{
+          const mode=attempts[i].mode;
+          return (typeof mode==='number'?'proxy'+mode:'direct')+': '+(x.reason?.message||'request failed');
+        });
+        workingMode=null;
+        throw Object.assign(new Error('network-blocked'),{isNetworkBlock:true,errs});
       }
-      workingMode=null;
-      throw Object.assign(new Error('network-blocked'),{isNetworkBlock:true,errs});
     })();
     fdaInflight.set(target,request);
     try{return await request;}finally{fdaInflight.delete(target);}
@@ -1948,8 +1243,13 @@ function closeCalcModal(){
 }
 
 /* ---------- feedback ----------
-   Feedback is sent silently from the app through FormSubmit to pharmasafe.info@gmail.com.
-   No Gmail/Outlook compose window is opened and no external mail website is launched.
+   SETUP (one-time, ~2 minutes) to get feedback emailed to you automatically:
+   1. Go to https://formspree.io → sign up free → New Form.
+   2. Set the form's notification email to pharmasafe.info@gmail.com.
+   3. Copy the endpoint it gives you (looks like https://formspree.io/f/xxxxxxx)
+      and paste it below, replacing the placeholder.
+   Until that's done, submissions still work — they just open a
+   pre-addressed Gmail compose window instead of sending silently.
 
    Star ratings are stored separately in Firestore (same Firebase project
    as login) purely as {rating, timestamp} — never the written feedback
@@ -1958,8 +1258,8 @@ function closeCalcModal(){
    console (Build → Firestore Database → Create database) with rules
    allowing create+read on a "ratings" collection. If Firestore isn't
    enabled yet, the summary badge simply stays hidden — nothing breaks. */
-const FEEDBACK_ENDPOINT="https://formsubmit.co/ajax/pharmasafe.info@gmail.com";
-const feedbackReady=true;
+const FEEDBACK_ENDPOINT="https://formspree.io/f/YOUR_FORM_ID";
+const feedbackReady=!FEEDBACK_ENDPOINT.includes('YOUR_FORM_ID');
 const FEEDBACK_EMAIL="pharmasafe.info@gmail.com";
 let feedbackRating=0;
 let ratingsDb=null, ratingsDbTried=false;
@@ -1999,10 +1299,51 @@ function closeFeedbackModal(){
    standard mailto fallback if Chrome/Android refuses the intent.
    Desktop/laptop: mailto, which opens the user's configured mail app.
    A website cannot force a Gmail app on every desktop/browser. */
-function openGmailCompose(){
-  /* Disabled: feedback is sent silently in-app via FormSubmit. */
-}
+function openGmailCompose(rating,message){
+  const subject=`PharmaSafe feedback (${rating||'no rating'}${rating?'★':''})`;
+  const body=message||'(no written feedback)';
+  const to=FEEDBACK_EMAIL;
+  const subjectEnc=encodeURIComponent(subject);
+  const bodyEnc=encodeURIComponent(body);
+  const mailto=`mailto:${encodeURIComponent(to)}?subject=${subjectEnc}&body=${bodyEnc}`;
+  const statusEl=$('feedbackStatus');
+  statusEl.style.color='var(--ok)';
+  statusEl.textContent='Opening Gmail…';
 
+  const ua=navigator.userAgent||'';
+  const isIOS=/iPad|iPhone|iPod/i.test(ua) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  const isAndroid=/Android/i.test(ua);
+
+  let leftPage=false;
+  const markLeft=()=>{leftPage=true;};
+  window.addEventListener('pagehide',markLeft,{once:true});
+  window.addEventListener('blur',markLeft,{once:true});
+
+  if(isIOS){
+    /* Gmail for iOS compose URL. */
+    const gmailIOS=`googlegmail:///co?to=${encodeURIComponent(to)}&subject=${subjectEnc}&body=${bodyEnc}`;
+    window.location.href=gmailIOS;
+  }else if(isAndroid){
+    /* Android Gmail handles SENDTO/mailto. Target the Gmail package first.
+       This must be launched from the user's Submit tap. */
+    const intentUrl=`intent://send?to=${encodeURIComponent(to)}&subject=${subjectEnc}&body=${bodyEnc}#Intent;scheme=mailto;package=com.google.android.gm;action=android.intent.action.SENDTO;end`;
+    window.location.href=intentUrl;
+  }else{
+    /* Desktop/laptop: there is normally no Gmail app. Use the configured
+       email client rather than redirecting to mail.google.com. */
+    window.location.href=mailto;
+  }
+
+  /* If the app handoff is blocked, fall back to the standard email handler.
+     Never send the user to mail.google.com automatically. */
+  setTimeout(()=>{
+    if(!leftPage && document.visibilityState==='visible'){
+      statusEl.style.color='var(--ok)';
+      statusEl.textContent='Opening your email app…';
+      try{ window.location.href=mailto; }catch(e){}
+    }
+  },1500);
+}
 async function recordRatingOnly(rating){
   const db=getRatingsDb();
   if(!db) throw new Error('Firestore is not initialized. Check Firebase configuration.');
@@ -2066,12 +1407,12 @@ async function submitFeedback(){
   const message=$('feedbackText').value.trim();
   const btn=$('feedbackSubmitBtn');
   const ratingToSave=feedbackRating;
-  btn.disabled=true; btn.textContent='Sending…';
+  btn.disabled=true; btn.textContent='Saving…';
   statusEl.style.color='var(--muted)';
-  statusEl.textContent='Sending your feedback…';
+  statusEl.textContent='Saving your rating…';
 
-  // Save the rating first; written feedback is then sent through FormSubmit
-  // without opening Gmail or leaving the page.
+  /* Firestore is completed BEFORE opening Gmail so the browser cannot leave
+     the page before the rating is actually written. */
   try{
     await recordRatingOnly(ratingToSave);
     await loadRatingSummary();
@@ -2081,76 +1422,38 @@ async function submitFeedback(){
     return;
   }
 
-  const payload={
-    _subject:`PharmaSafe feedback (${ratingToSave}★)`,
-    _captcha:'false',
-    _template:'table',
-    rating:String(ratingToSave),
-    message:message||'(no written feedback)',
-    page:location.href,
-    user:(typeof currentUser!=='undefined' && currentUser && currentUser.email) ? currentUser.email : 'anonymous'
-  };
+  statusEl.style.color='var(--ok)';
+  statusEl.textContent='Rating saved ✓ Opening Gmail…';
 
-  let sent=false;
-  try{
-    const res=await fetch(FEEDBACK_ENDPOINT,{
-      method:'POST',
-      headers:{'Accept':'application/json','Content-Type':'application/json'},
-      body:JSON.stringify(payload),
-      mode:'cors',
-      credentials:'omit',
-      cache:'no-store'
-    });
-    sent=res.ok;
-  }catch(e){
-    console.warn('FormSubmit AJAX unavailable; using hidden-form fallback.',e);
-  }
-
-  if(!sent){
-    // FormSubmit's normal HTML endpoint works even when an AJAX/CORS request
-    // is blocked. The form targets an invisible iframe, so the user stays on
-    // the same page and no mail website or popup is opened.
+  if(feedbackReady){
     try{
-      const iframe=document.createElement('iframe');
-      iframe.name='pharmasafeFeedbackFrame';
-      iframe.style.cssText='position:absolute;width:0;height:0;border:0;visibility:hidden;';
-      document.body.appendChild(iframe);
-      const form=document.createElement('form');
-      form.method='POST';
-      form.action='https://formsubmit.co/pharmasafe.info@gmail.com';
-      form.target=iframe.name;
-      form.style.display='none';
-      Object.entries(payload).forEach(([k,v])=>{
-        const input=document.createElement('input');
-        input.type='hidden'; input.name=k; input.value=String(v);
-        form.appendChild(input);
+      const res=await fetch(FEEDBACK_ENDPOINT,{
+        method:'POST',
+        headers:{'Accept':'application/json','Content-Type':'application/json'},
+        body:JSON.stringify({
+          rating:ratingToSave,
+          message:message||'(no written feedback)',
+          page:location.href,
+          user:(typeof currentUser!=='undefined' && currentUser && currentUser.email) ? currentUser.email : 'anonymous'
+        })
       });
-      document.body.appendChild(form);
-      form.submit();
-      setTimeout(()=>{form.remove();iframe.remove();},8000);
-      sent=true;
+      if(!res.ok)throw new Error('Formspree responded with an error');
+      statusEl.textContent='Thank you — your feedback was sent.';
+      setTimeout(()=>{
+        closeFeedbackModal();
+        feedbackRating=0;
+        $('feedbackText').value='';
+        document.querySelectorAll('#starRow .star').forEach(s=>s.classList.remove('filled'));
+        statusEl.textContent='';
+      },1400);
     }catch(e){
-      console.error('PharmaSafe FormSubmit fallback failed:',e);
+      openGmailCompose(ratingToSave,message);
     }
-  }
-
-  if(sent){
-    statusEl.style.color='var(--ok)';
-    statusEl.textContent='Thank you — your feedback was sent ✓';
-    setTimeout(()=>{
-      closeFeedbackModal();
-      feedbackRating=0;
-      $('feedbackText').value='';
-      document.querySelectorAll('#starRow .star').forEach(s=>s.classList.remove('filled'));
-      statusEl.textContent='';
-    },1100);
   }else{
-    statusEl.style.color='var(--signal)';
-    statusEl.textContent='Feedback could not be sent right now. Please try again.';
+    openGmailCompose(ratingToSave,message);
   }
   btn.disabled=false; btn.textContent='Submit feedback';
 }
-
 /* ---------- report viewer ---------- */
 async function caseView(){
   await withBtn('caseBtn',async()=>{
@@ -2352,8 +1655,7 @@ async function doInstall(){
    3. Project settings (gear icon) → General → "Your apps" → Add app → Web.
       Copy the config object it gives you into FIREBASE_CONFIG below.
    Until you do this, the app still works fully for anonymous browsing —
-   sign-in will just show a setup notice instead of a form.
-   App Check is initialized below with the production reCAPTCHA Enterprise site key. */
+   sign-in will just show a setup notice instead of a form. */
 const FIREBASE_CONFIG={
   apiKey:"AIzaSyC8kBeQ97xUc7ZOnn_Z3hx6UkzDl2AXOOI",
   authDomain:"pharmasafe-ac4f6.firebaseapp.com",
@@ -2361,33 +1663,7 @@ const FIREBASE_CONFIG={
   appId:"1:831408748488:web:b27e8c1b91212c6f2032fd"
 };
 const firebaseReady = FIREBASE_CONFIG.apiKey!=='YOUR_API_KEY' && window.firebase;
-if(firebaseReady){
-  firebase.initializeApp(FIREBASE_CONFIG);
-
-  // Firebase App Check — reCAPTCHA Enterprise.
-  // The site key is public by design; domain verification is enforced by Google Cloud.
-  // Activation (not initializeApp itself) is deferred until just after the
-  // page's first paint — reCAPTCHA Enterprise's own script/network cost is
-  // real and otherwise competes with initial render for bandwidth/CPU.
-  // Nothing about App Check's protection is skipped or weakened by this —
-  // it still activates on every load, just a beat later, well before any
-  // login or Firestore write a user could actually trigger.
-  const RECAPTCHA_ENTERPRISE_SITE_KEY="6Le3H5gtAAAAAFP401ud8f0fuN962yu8fBPzWW7";
-  const activateAppCheck=()=>{
-    if(firebase.appCheck){
-      try{
-        firebase.appCheck().activate(RECAPTCHA_ENTERPRISE_SITE_KEY, true);
-      }catch(e){
-        console.warn('Firebase App Check could not be initialized:', e);
-      }
-    }
-  };
-  if(document.readyState==='complete'){
-    setTimeout(activateAppCheck,0);
-  }else{
-    window.addEventListener('load',()=>setTimeout(activateAppCheck,0),{once:true});
-  }
-}
+if(firebaseReady)firebase.initializeApp(FIREBASE_CONFIG);
 
 let currentUser=null;
 
@@ -2587,4 +1863,3 @@ if(firebaseReady){
 
 // The app is usable immediately — sign-in is optional, prompted softly after a couple of tool uses.
 initApp();
-</script></body></html>

@@ -29,6 +29,15 @@ Or: menu (⋮) → **Install app**.
 After installing, it launches like a normal app: its own icon, full
 screen, no address bar.
 
+
+## Firebase App Check
+
+The production web app is integrated with **Firebase App Check using reCAPTCHA Enterprise**.
+The reCAPTCHA Enterprise site key is intentionally present in the frontend because site keys
+are public identifiers; protection comes from the Google Cloud domain restriction and Firebase
+App Check attestation. Keep Firebase Security Rules enabled and test App Check before enabling
+Firebase App Check enforcement.
+
 ## What still needs the internet
 
 The app shell (layout, styling, navigation) caches offline and opens

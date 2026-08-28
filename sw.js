@@ -1,4 +1,4 @@
-// v2: fixed a real staleness bug — v1 used cache-first for index.html
+// v3: added Firebase App Check integration; cache version bumped so deployed clients refresh — v1 used cache-first for index.html
 // itself, so once installed, an updated site never reached devices that
 // already had the app cached (installed home-screen icon included) until
 // this file's own bytes changed enough for the browser to notice. Two
@@ -7,7 +7,7 @@
 // when genuinely offline; (2) the cache name below is versioned, so this
 // deployment itself forces every existing install to detect, install, and
 // activate this new worker immediately instead of silently keeping v1.
-const CACHE = 'pharmasafe-shell-v2';
+const CACHE = 'pharmasafe-shell-v3';
 const SHELL = [
   './manifest.json',
   './icons/icon-192.png',
