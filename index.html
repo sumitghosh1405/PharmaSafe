@@ -61,8 +61,6 @@ if(location.hostname==='sumitghosh1405.github.io'){
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=optional" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js" defer></script>
 <!-- Google tag (gtag.js) — kept async and positioned after the app's own
      critical resources so analytics never competes for early bandwidth
      with fonts/Firebase/Chart.js during first paint. -->
@@ -1400,8 +1398,9 @@ function prr(a,b,c,d){a+=.5;b+=.5;c+=.5;d+=.5;return (a/(a+b))/(c/(c+d));}
 
 async function withBtn(id,fn,silent){
   if(silent){await fn();return;}
-  const btn=$(id);const old=btn.textContent;btn.disabled=true;btn.textContent='Working…';
-  try{await fn();trackToolUse();}finally{btn.disabled=false;btn.textContent=old;}
+  const btn=$(id);if(!btn||btn.disabled)return;
+  const old=btn.textContent;btn.disabled=true;btn.setAttribute('aria-busy','true');btn.textContent='Working…';
+  try{await fn();trackToolUse();}finally{btn.disabled=false;btn.removeAttribute('aria-busy');btn.textContent=old;}
 }
 function flashUpdated(id){const el=$(id);if(!el)return;el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');}
 function skeleton(rows){
@@ -1425,10 +1424,51 @@ function errHTML(e){return e && e.isNetworkBlock ? networkErrorHTML(e.errs) : `<
 
 function csvDownload(filename,rows){
   const csv=rows.map(r=>r.map(c=>{const s=String(c??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',')).join('\n');
-  const blob=new Blob([csv],{type:'text/csv'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');const url=URL.createObjectURL(blob);a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200);
 }
+
+/* PDF is loaded only when a user actually asks for a PDF. */
+let pdfLibPromise=null;
+function loadScriptOnce(src,id){
+  return new Promise((resolve,reject)=>{
+    const existing=id&&document.getElementById(id);
+    if(existing){
+      if(existing.dataset.loaded==='1')return resolve();
+      existing.addEventListener('load',resolve,{once:true});existing.addEventListener('error',()=>reject(new Error('PDF library could not be loaded.')),{once:true});return;
+    }
+    const el=document.createElement('script');if(id)el.id=id;el.src=src;el.async=true;
+    el.onload=()=>{el.dataset.loaded='1';resolve()};el.onerror=()=>reject(new Error('PDF library could not be loaded. Please check your connection and try again.'));
+    document.head.appendChild(el);
+  });
+}
+async function ensurePdfLibs(){
+  if(window.jspdf?.jsPDF && window.jspdf.jsPDF.API?.autoTable)return;
+  if(!pdfLibPromise){
+    pdfLibPromise=loadScriptOnce('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js','pharmasafe-jspdf')
+      .then(()=>loadScriptOnce('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js','pharmasafe-jspdf-autotable'));
+  }
+  await pdfLibPromise;
+}
+async function pdfDownload(filename,title,headers,rows,opts={}){
+  await ensurePdfLibs();
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:opts.orientation||'landscape',unit:'mm',format:'a4'});
+  doc.setFontSize(15);doc.setTextColor(25);doc.text(title,14,15);
+  doc.setFontSize(8.5);doc.setTextColor(105);doc.text('Source: FDA AEMS/FAERS via openFDA · Generated '+new Date().toLocaleString(),14,21);
+  if(opts.subtitle)doc.text(String(opts.subtitle),14,26);
+  doc.autoTable({startY:opts.subtitle?31:26,head:[headers],body:rows,styles:{fontSize:8,cellWidth:'wrap',valign:'top'},headStyles:{fillColor:[21,94,99]},columnStyles:opts.columnStyles||{},margin:{left:14,right:14}});
+  doc.save(filename);
+}
+async function runPdfExport(btn,job){
+  if(window.__pharmaPdfBusy)return;
+  window.__pharmaPdfBusy=true;
+  const old=btn?.textContent;if(btn){btn.disabled=true;btn.textContent='Preparing PDF…';btn.setAttribute('aria-busy','true');}
+  try{await job();}catch(e){console.error('PDF export failed:',e);alert(e.message||'PDF export failed. Please try again.');}
+  finally{if(btn){btn.disabled=false;btn.textContent=old;btn.removeAttribute('aria-busy');}window.__pharmaPdfBusy=false;}
+}
+function exportButton(label,fn){return `<button class="btn ghost" type="button" onclick="${fn}(this)">${label}</button>`;}
 function countUp(el,target){
   const start=0,dur=700,t0=performance.now();
   function step(t){
@@ -1441,6 +1481,7 @@ function countUp(el,target){
 const PAL=['#0891b2','#7c3aed','#db2777','#d97706','#059669','#2563eb','#dc2626','#65a30d'];
 
 /* ---------- auto-refresh engine ---------- */
+let lastCompareExport=null,lastOutcomeExport=null,lastSignalExport=null,lastCaseExport=null,lastTrendExport=null,lastLeaderboardExport=null;
 const state={
   drug:{loaded:false,name:null}, rxsearch:{loaded:false,name:null}, compare:{loaded:false,a:null,b:null},
   signal:{loaded:false,drug:null,rx:null}, outcomes:{loaded:false,name:null},
@@ -1530,6 +1571,7 @@ async function drugSearch(silent){
       const rx=mergeTermCounts((x.results||[]).map(a=>({term:a.term,count:a.count}))).slice(0,30);
       const top10=rx.slice(0,10);
       const displayName=res.wildcard?n:res.name;
+      window.__lastDrugExport={name:displayName,rx};
       const rows=rx.map(r=>`<tr><td>${esc(r.term)}</td><td>${r.count.toLocaleString()}</td><td><button class="btn gray" style="padding:6px 11px;font-size:11.5px" onclick="useSignal(${esc(JSON.stringify(displayName))},${esc(JSON.stringify(r.term))})">Screen this pair</button></td></tr>`).join('');
       const sexCounts={Male:0,Female:0,Unknown:0};
       (sexX.results||[]).forEach(s=>{const label=fmtSex(s.term);sexCounts[label]=(sexCounts[label]||0)+s.count;});
@@ -1553,8 +1595,9 @@ async function drugSearch(silent){
           ['Limitations',FAERS_LIMITATIONS_HTML]
         ])}
         <div class="actions">
-          <button class="btn ghost" onclick='exportDrugCSV(${esc(JSON.stringify(displayName))},${esc(JSON.stringify(rx))})'>Export CSV</button>
-          <button class="btn ghost" onclick="go('outcomes');$('outDrug').value=${esc(JSON.stringify(displayName))};outcomes()">Outcome severity →</button>
+          <button class="btn ghost" type="button" onclick='exportDrugCSV(${esc(JSON.stringify(displayName))},${esc(JSON.stringify(rx))})'>Export CSV</button>
+          ${exportButton('Export PDF','exportDrugPDF')}
+          <button class="btn ghost" type="button" onclick="go('outcomes');$('outDrug').value=${esc(JSON.stringify(displayName))};outcomes()">Outcome severity →</button>
         </div>`;
 
       if(reactionChart)reactionChart.destroy();
@@ -1591,6 +1634,7 @@ async function reactionSearch(silent){
       const drugs=mergeTermCounts((x.results||[]).map(a=>({term:a.term,count:a.count}))).slice(0,30);
       const top10=drugs.slice(0,10);
       const displayName=res.wildcard?n:res.name;
+      window.__lastReactionExport={name:displayName,drugs};
       const seriousPct=reports?(seriousCount/reports*100):0;
       const rows=drugs.map(d=>`<tr><td>${esc(d.term)}</td><td>${d.count.toLocaleString()}</td><td><button class="btn gray" style="padding:6px 11px;font-size:11.5px" onclick="useSignal(${esc(JSON.stringify(d.term))},${esc(JSON.stringify(displayName))})">Screen this pair</button></td></tr>`).join('');
 
@@ -1613,8 +1657,9 @@ async function reactionSearch(silent){
           ['Limitations',FAERS_LIMITATIONS_HTML]
         ])}
         <div class="actions">
-          <button class="btn ghost" onclick='exportReactionCSV(${esc(JSON.stringify(displayName))},${esc(JSON.stringify(drugs))})'>Export CSV</button>
-          <button class="btn ghost" onclick="go('drug');$('drugName').value=${esc(JSON.stringify(top10[0]?.term||''))};drugSearch()" ${top10.length?'':'disabled'}>Analyze top drug →</button>
+          <button class="btn ghost" type="button" onclick='exportReactionCSV(${esc(JSON.stringify(displayName))},${esc(JSON.stringify(drugs))})'>Export CSV</button>
+          ${exportButton('Export PDF','exportReactionPDF')}
+          <button class="btn ghost" type="button" onclick="go('drug');$('drugName').value=${esc(JSON.stringify(top10[0]?.term||''))};drugSearch()" ${top10.length?'':'disabled'}>Analyze top drug →</button>
         </div>`;
 
       if(rxDrugChart)rxDrugChart.destroy();
@@ -1646,6 +1691,8 @@ async function compareDrugs(silent){
       const totA=resA.count, totB=resB.count;
       const nameA=resA.wildcard?a:resA.name, nameB=resB.wildcard?b:resB.name;
       const topA=mergeTermCounts(xA.results||[]).slice(0,6), topB=mergeTermCounts(xB.results||[]).slice(0,6);
+      const compareRows=[...new Set([...topA.map(r=>r.term),...topB.map(r=>r.term)])].map(term=>[term,topA.find(r=>r.term===term)?.count||0,topB.find(r=>r.term===term)?.count||0]);
+      lastCompareExport={nameA,nameB,totA,totB,rows:compareRows};
       $('cmpOut').innerHTML=`
         ${matchNoteHtml(resA,a,'cmpA')}${matchNoteHtml(resB,b,'cmpB')}
         <h4>Total reports</h4>
@@ -1660,7 +1707,8 @@ async function compareDrugs(silent){
           ['Query',`A: <code>${esc(resA.query)}</code> · B: <code>${esc(resB.query)}</code>`],
           ['Counts',`${esc(nameA)}: ${totA.toLocaleString()} reports · ${esc(nameB)}: ${totB.toLocaleString()} reports`],
           ['Limitations',FAERS_LIMITATIONS_HTML]
-        ])}`;
+        ])}
+        <div class="actions">${exportButton('Export CSV','exportCompareCSV')} ${exportButton('Export PDF','exportComparePDF')}</div>`;
       if(cmpTotalsChart)cmpTotalsChart.destroy();
       cmpTotalsChart=new Chart($('cmpTotals'),{type:'bar',data:{labels:[nameA,nameB],datasets:[{data:[totA,totB],backgroundColor:[PAL[0],PAL[1]],borderRadius:4}]},
         options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
@@ -1693,6 +1741,7 @@ async function outcomes(silent){
       const totReports=res.count;
       const counts=await Promise.all(fields.map(([f])=>total(res.query+' AND '+f+':1')));
       const data=fields.map(([f,label],i)=>({label,count:counts[i],pct:totReports?counts[i]/totReports*100:0}));
+      lastOutcomeExport={name:displayName,total:totReports,data};
       $('outOut').innerHTML=`
         ${matchNoteHtml(res,n)}
         <div class="chips"><span class="chip"><b>${totReports.toLocaleString()}</b>&nbsp;total reports for ${esc(displayName)}</span></div>
@@ -1706,7 +1755,8 @@ async function outcomes(silent){
           ['Query',esc(res.query)],
           ['Counts',data.map(d=>`${d.label}: ${d.count.toLocaleString()}`).join(' · ')],
           ['Limitations',FAERS_LIMITATIONS_HTML]
-        ])}`;
+        ])}
+        <div class="actions">${exportButton('Export CSV','exportOutcomesCSV')} ${exportButton('Export PDF','exportOutcomesPDF')}</div>`;
       if(outChart)outChart.destroy();
       outChart=new Chart($('outChart'),{type:'bar',data:{labels:data.map(d=>d.label),datasets:[{data:data.map(d=>d.count),backgroundColor:[PAL[6],PAL[3],PAL[1],PAL[5],PAL[7]],borderRadius:4}]},
         options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
@@ -1776,10 +1826,12 @@ async function signal(silent){
           ['Counts',`a=${a} · b=${b2} · c=${c} · d=${d}`],
           ['Limitations',FAERS_LIMITATIONS_HTML]
         ])}
+        <div class="actions">${exportButton('Export CSV','exportSignalCSV')} ${exportButton('Export PDF','exportSignalPDF')}</div>
         <button class="btn gray" id="labelBtn" onclick="label(${esc(JSON.stringify(displayDrug))})">Check FDA label evidence</button>
         <div id="labelOut"></div>
       </div>`;
       lastSignalCalc={drug:displayDrug,rx,a,b:b2,c,d,r,lo,hi,p,flag};
+      lastSignalExport=lastSignalCalc;
       state.signal={loaded:true,drug,rx};
       if(silent)flashUpdated('sigOut');
     }catch(e){
@@ -2180,6 +2232,7 @@ async function caseView(){
       const receivedFmt=z.receivedate&&/^\d{8}$/.test(z.receivedate)?`${z.receivedate.slice(0,4)}-${z.receivedate.slice(4,6)}-${z.receivedate.slice(6,8)}`:esc(z.receivedate)||'Not reported';
       const seriousFmt=z.serious==='1'?'Yes':z.serious==='2'?'No':'Not reported';
       const drugsRows=drugs.map(d=>`<tr><td>${esc(d.name)||'Unnamed product'}</td><td>${esc(d.role)}</td><td>${esc(d.indication)||'—'}</td></tr>`).join('');
+      lastCaseExport={id:z.safetyreportid,received:receivedFmt,serious:seriousFmt,country:z.occurcountry||'Not reported',age:fmtAge(p.patientonsetage,p.patientonsetageunit),sex:fmtSex(p.patientsex),drugs,reactions};
       $('caseOut').innerHTML=`<div class="card" style="margin-top:14px">
         <h3>Report ${esc(z.safetyreportid)}</h3>
         <div class="chips">
@@ -2198,6 +2251,7 @@ async function caseView(){
           ['Counts','1 report retrieved by exact ID match'],
           ['Limitations',FAERS_LIMITATIONS_HTML]
         ])}
+        <div class="actions">${exportButton('Export CSV','exportCaseCSV')} ${exportButton('Export PDF','exportCasePDF')}</div>
       </div>`;
     }catch(e){$('caseOut').innerHTML=errHTML(e);}
   });
@@ -2227,6 +2281,7 @@ async function trend(silent){
       const keys=Object.keys(monthly).sort();
       const labels=keys.map(k=>`${MONTHS[Number(k.slice(4,6))-1]} ${k.slice(0,4)}`);
       const counts=keys.map(k=>monthly[k]);
+      lastTrendExport={name:displayName,rows:keys.map((k,i)=>[labels[i],counts[i]])};
       if(chart)chart.destroy();
       chart=new Chart($('trendChart'),{type:'line',data:{labels,datasets:[{label:'FDA reports for '+displayName+' (by month)',data:counts,borderColor:PAL[0],backgroundColor:PAL[0]+'22',fill:true,tension:.15,pointRadius:0}]},
         options:{plugins:{tooltip:{callbacks:{title:items=>items[0]?.label||''}}},
@@ -2236,7 +2291,7 @@ async function trend(silent){
         ['Query',esc(res.query)],
         ['Counts',`${keys.length} months of data, ${counts.reduce((s,v)=>s+v,0).toLocaleString()} total reports plotted`],
         ['Limitations',FAERS_LIMITATIONS_HTML]
-      ]);
+      ])+`<div class="actions">${exportButton('Export CSV','exportTrendCSV')} ${exportButton('Export PDF','exportTrendPDF')}</div>`;
       state.trend={loaded:true,name:n};
       if(silent)flashUpdated('trendChart');
     }catch(e){
@@ -2260,6 +2315,7 @@ async function leaderboard(silent){
       const topRx=mergeTermCounts(rxX.results||[]).slice(0,12);
       const maxD=Math.max(...topDrugs.map(d=>d.count),1);
       const maxR=Math.max(...topRx.map(d=>d.count),1);
+      lastLeaderboardExport={drugs:topDrugs,reactions:topRx};
       const rowsHtml=(items,max)=>items.map((it,i)=>`<div class="leaderrow"><span class="rank">${String(i+1).padStart(2,'0')}</span><span class="name">${esc(it.term)}</span><span class="bar" style="width:${Math.max(6,it.count/max*90)}px"></span><span class="val">${it.count.toLocaleString()}</span></div>`).join('');
       $('leadOut').innerHTML=`<div class="row2">
         <div><h4>Top drug terms (openFDA aggregation)</h4>${rowsHtml(topDrugs,maxD)}</div>
@@ -2271,7 +2327,7 @@ async function leaderboard(silent){
         ['Query','<code>count=patient.drug.medicinalproduct.exact</code> and <code>count=patient.reaction.reactionmeddrapt.exact</code> — no filter, entire public index'],
         ['Counts','Top 12 shown, drawn from openFDA\u2019s top-1,000-by-frequency aggregation computed over the complete dataset'],
         ['Limitations','<ul class="readpoints" style="margin-top:0"><li><span class="ic info">i</span><span>Counts are bucketed by exact submitted text — the same drug under different spellings/brand names is split across separate rows, so true combined volume can rank lower than shown.</span></li><li><span class="ic info">i</span><span>Reflects report volume, not risk, and is skewed toward widely prescribed, long-marketed drugs.</span></li></ul>']
-      ])}`;
+      ])}<div class="actions">${exportButton('Export CSV','exportLeaderboardCSV')} ${exportButton('Export PDF','exportLeaderboardPDF')}</div>`;
       state.leaderboard.loaded=true;
       if(silent)flashUpdated('leadOut');
     }catch(e){
@@ -2298,7 +2354,7 @@ async function recent(silent){
         return `<tr><td>${esc(r.id)}</td><td>${receivedFmt}</td><td>${fmtAge(r.age,r.ageUnit)}</td><td>${fmtSex(r.sex)}</td><td>${esc(r.drugs.join(', '))||'—'}</td><td>${esc(r.reactions.join(', '))||'—'}</td></tr>`;
       }).join('');
       $('recentOut').innerHTML=`<div style="overflow-x:auto"><table><tr><th>ID</th><th>Received</th><th>Age</th><th>Sex</th><th>Drugs</th><th>Reactions</th></tr>${rows||'<tr><td colspan=6>No data.</td></tr>'}</table></div>
-        <div class="actions"><button class="btn ghost" onclick='exportRecentCSV(${esc(JSON.stringify(out))})'>Export CSV</button><button class="btn ghost" onclick='exportRecentPDF(${esc(JSON.stringify(out))})'>Export PDF</button></div>
+        <div class="actions"><button class="btn ghost" onclick='exportRecentCSV(${esc(JSON.stringify(out))})'>Export CSV</button><button class="btn ghost" onclick='exportRecentPDF(${esc(JSON.stringify(out))},this)'>Export PDF</button></div>
         ${methodPanel([
           ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
           ['Query','<code>limit=20&sort=receivedate:desc</code> — no filter, entire public index'],
@@ -2314,28 +2370,24 @@ async function recent(silent){
   },silent);
 }
 function exportRecentCSV(out){csvDownload('pharmasafe_recent_reports.csv',[['id','received','age','sex','drugs','reactions'],...out.map(r=>[r.id,r.received,fmtAge(r.age,r.ageUnit),fmtSex(r.sex),r.drugs.join('; '),r.reactions.join('; ')])]);}
-function exportRecentPDF(out){
-  if(!window.jspdf||!window.jspdf.jsPDF){
-    alert('PDF export is still loading — please wait a moment and try again.');
-    return;
-  }
-  const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({orientation:'landscape'});
-  doc.setFontSize(14);
-  doc.text('PharmaSafe — Recent Reports',14,15);
-  doc.setFontSize(9);
-  doc.setTextColor(120);
-  doc.text('Source: FDA AEMS/FAERS via openFDA · Generated '+new Date().toLocaleString(),14,21);
-  doc.autoTable({
-    startY:26,
-    head:[['ID','Received','Age','Sex','Drugs','Reactions']],
-    body: out.map(r=>[r.id, r.received, fmtAge(r.age,r.ageUnit), fmtSex(r.sex), r.drugs.join(', ')||'—', r.reactions.join(', ')||'—']),
-    styles:{fontSize:8,cellWidth:'wrap',valign:'top'},
-    headStyles:{fillColor:[21,94,99]},
-    columnStyles:{4:{cellWidth:80},5:{cellWidth:80}}
-  });
-  doc.save('pharmasafe_recent_reports.pdf');
-}
+async function exportRecentPDF(out,btn){await runPdfExport(btn,()=>pdfDownload('pharmasafe_recent_reports.pdf','PharmaSafe — Recent Reports',['ID','Received','Age','Sex','Drugs','Reactions'],out.map(r=>[r.id,r.received,fmtAge(r.age,r.ageUnit),fmtSex(r.sex),r.drugs.join(', ')||'—',r.reactions.join(', ')||'—']),{columnStyles:{4:{cellWidth:70},5:{cellWidth:70}}}));}
+
+
+/* ---------- universal tool exports ---------- */
+function exportDrugPDF(btn){const x=window.__lastDrugExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_reactions.pdf','PharmaSafe — '+x.name+' reactions',['Reaction term','Report count'],x.rx.map(r=>[r.term,r.count])));}
+function exportReactionPDF(btn){const x=window.__lastReactionExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_drugs.pdf','PharmaSafe — '+x.name+' implicated drugs',['Drug','Report count'],x.drugs.map(d=>[d.term,d.count])));}
+function exportCompareCSV(btn){const x=lastCompareExport;if(!x)return;csvDownload('pharmasafe_compare.csv',[['Metric',x.nameA,x.nameB],['Total reports',x.totA,x.totB],[],['Reaction',x.nameA+' reports',x.nameB+' reports'],...x.rows]);}
+function exportComparePDF(btn){const x=lastCompareExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_compare.pdf','PharmaSafe — Drug Comparison',['Reaction',x.nameA+' reports',x.nameB+' reports'],[['TOTAL REPORTS',x.totA,x.totB],...x.rows]));}
+function exportOutcomesCSV(btn){const x=lastOutcomeExport;if(!x)return;csvDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_outcomes.csv',[['outcome','report_count','percent_of_total'],...x.data.map(d=>[d.label,d.count,d.pct.toFixed(1)+'%'])]);}
+function exportOutcomesPDF(btn){const x=lastOutcomeExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_outcomes.pdf','PharmaSafe — '+x.name+' outcome severity',['Outcome','Reports','% of total'],x.data.map(d=>[d.label,d.count,d.pct.toFixed(1)+'%'])));}
+function exportSignalCSV(btn){const x=lastSignalExport;if(!x)return;csvDownload('pharmasafe_signal.csv',[['drug','reaction','a_drug_reaction','b_drug_other_reactions','c_other_drugs_reaction','d_other_drugs_other_reactions','ROR','ROR_95CI_low','ROR_95CI_high','PRR','flagged'],[x.drug,x.rx,x.a,x.b,x.c,x.d,x.r.toFixed(4),x.lo.toFixed(4),x.hi.toFixed(4),x.p.toFixed(4),x.flag?'Potential statistical signal':'Not flagged']]);}
+function exportSignalPDF(btn){const x=lastSignalExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_signal.pdf','PharmaSafe — Signal Detection',['Metric','Value'],[['Drug',x.drug],['Reaction',x.rx],['a — drug + reaction',x.a],['b — drug + other reactions',x.b],['c — other drugs + reaction',x.c],['d — other drugs + other reactions',x.d],['ROR',x.r.toFixed(4)],['95% CI',x.lo.toFixed(4)+' – '+x.hi.toFixed(4)],['PRR',x.p.toFixed(4)],['Research screen',x.flag?'Potential statistical signal':'Not flagged']]));}
+function exportCaseCSV(btn){const x=lastCaseExport;if(!x)return;csvDownload('pharmasafe_report_'+x.id+'.csv',[['field','value'],['Report ID',x.id],['Received',x.received],['Serious',x.serious],['Country',x.country],['Age',x.age],['Sex',x.sex],[],['Drug','Role','Indication'],...x.drugs.map(d=>[d.name,d.role,d.indication||'—']),[],['Reactions'],...x.reactions.map(r=>[r])]);}
+function exportCasePDF(btn){const x=lastCaseExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_report_'+x.id+'.pdf','PharmaSafe — Report '+x.id,['Field','Value'],[['Received',x.received],['Serious',x.serious],['Country',x.country],['Age',x.age],['Sex',x.sex],['Drugs',x.drugs.map(d=>d.name).join(', ')||'—'],['Reactions',x.reactions.join(', ')||'—']]));}
+function exportTrendCSV(btn){const x=lastTrendExport;if(!x)return;csvDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_trend.csv',[['month','report_count'],...x.rows]);}
+function exportTrendPDF(btn){const x=lastTrendExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_trend.pdf','PharmaSafe — '+x.name+' trend',['Month','Report count'],x.rows));}
+function exportLeaderboardCSV(btn){const x=lastLeaderboardExport;if(!x)return;csvDownload('pharmasafe_leaderboard.csv',[['type','rank','term','report_count'],...x.drugs.map((d,i)=>['Drug',i+1,d.term,d.count]),...x.reactions.map((d,i)=>['Reaction',i+1,d.term,d.count])]);}
+function exportLeaderboardPDF(btn){const x=lastLeaderboardExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_leaderboard.pdf','PharmaSafe — Leaderboard',['Type','Rank','Term','Report count'],[...x.drugs.map((d,i)=>['Drug',i+1,d.term,d.count]),...x.reactions.map((d,i)=>['Reaction',i+1,d.term,d.count]) ]));}
 
 /* ---------- PWA: service worker + install prompts ---------- */
 if('serviceWorker' in navigator){
