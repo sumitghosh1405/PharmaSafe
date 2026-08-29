@@ -1352,13 +1352,14 @@ async function fda(params,base){
     const target=url.toString();
 
     const cached=fdaCache.get(target);
-    if(cached && Date.now()-cached.ts<FDA_CACHE_TTL)return cached.data;
+    if(cached && Date.now()-cached.ts<FDA_CACHE_TTL){setStatus(true);return cached.data;}
     if(fdaInflight.has(target))return await fdaInflight.get(target);
 
     const request=(async()=>{
-      // Fast path: use the last known working transport first, otherwise hit
-      // openFDA directly. Only try proxies after the primary request fails.
-      // This avoids firing 3 extra proxy requests on every successful search.
+      // Prefer the last known-good transport, but if it fails, immediately
+      // re-check direct openFDA and the fallback proxies. A stale transport
+      // choice is cleared as soon as it fails so the app can recover on the
+      // next request instead of appearing permanently offline.
       const orderedModes=[];
       if(workingMode!==null)orderedModes.push(workingMode);
       if(!orderedModes.includes('direct'))orderedModes.push('direct');
@@ -1367,13 +1368,15 @@ async function fda(params,base){
       for(const mode of orderedModes){
         const url=mode==='direct'?target:PROXIES[mode](target);
         try{
-          const r=await rawGet(url,9000);
+          const r=await rawGet(url,7000);
           const data=await handleResp(r);
           workingMode=mode;
           fdaCache.set(target,{ts:Date.now(),data});
+          setStatus(true);
           return data;
         }catch(e){
           errs.push((typeof mode==='number'?'proxy'+mode:'direct')+': '+(e?.message||'request failed'));
+          if(mode===workingMode)workingMode=null;
         }
       }
       workingMode=null;
@@ -1524,7 +1527,14 @@ document.addEventListener('visibilitychange',()=>{
 /* ---------- boot / status ---------- */
 async function boot(silent){
   try{
-    const x=await fda({limit:1});
+    let x;
+    try{x=await fda({limit:1});}
+    catch(firstErr){
+      // A transient mobile/network hiccup should not flip the global status
+      // to Offline. Recheck once after a short delay before declaring failure.
+      await new Promise(r=>setTimeout(r,350));
+      x=await fda({limit:1});
+    }
     if(silent)$('total').textContent=Number(x?.meta?.results?.total||0).toLocaleString();
     else countUp($('total'),Number(x?.meta?.results?.total||0));
     $('updated').textContent=x?.meta?.last_updated||'Quarterly';
@@ -1696,7 +1706,7 @@ async function compareDrugs(silent){
       $('cmpOut').innerHTML=`
         ${matchNoteHtml(resA,a,'cmpA')}${matchNoteHtml(resB,b,'cmpB')}
         <h4>Total reports</h4>
-        <canvas id="cmpTotals" height="70"></canvas>
+        <canvas id="cmpTotals" height="100"></canvas>
         <div class="row2" style="margin-top:22px">
           <div><h4>${esc(nameA)} — top reactions</h4><canvas id="cmpChartA" height="180"></canvas></div>
           <div><h4>${esc(nameB)} — top reactions</h4><canvas id="cmpChartB" height="180"></canvas></div>
@@ -1711,7 +1721,7 @@ async function compareDrugs(silent){
         <div class="actions">${exportButton('Export CSV','exportCompareCSV')} ${exportButton('Export PDF','exportComparePDF')}</div>`;
       if(cmpTotalsChart)cmpTotalsChart.destroy();
       cmpTotalsChart=new Chart($('cmpTotals'),{type:'bar',data:{labels:[nameA,nameB],datasets:[{data:[totA,totB],backgroundColor:[PAL[0],PAL[1]],borderRadius:4}]},
-        options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
+        options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false},ticks:{autoSkip:false}}}}});
       if(cmpChartA)cmpChartA.destroy();
       cmpChartA=new Chart($('cmpChartA'),{type:'bar',data:{labels:topA.map(r=>r.term),datasets:[{data:topA.map(r=>r.count),backgroundColor:PAL[0],borderRadius:4}]},
         options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
