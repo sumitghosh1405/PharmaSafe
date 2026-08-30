@@ -1,0 +1,1959 @@
+const $=x=>document.getElementById(x);
+const ICONS={
+  moon:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+  sun:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>',
+  close:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  user:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  download:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>'
+};
+const BASE="https://api.fda.gov/drug/event.json";
+const LABEL_BASE="https://api.fda.gov/drug/label.json";
+
+const TITLES={home:'Overview',drug:'Drug analysis',rxsearch:'Reaction search',compare:'Compare drugs',signal:'Signal detection',outcomes:'Outcome severity',trend:'Trend',case:'Report viewer',leaderboard:'Leaderboard',recent:'Recent reports'};
+let currentSection='home';
+function go(x){
+  document.querySelectorAll('section').forEach(s=>s.classList.remove('active'));
+  $(x).classList.add('active');
+  document.querySelectorAll('nav.side button').forEach(b=>b.classList.toggle('active',b.dataset.t===x));
+  $('pageTitle').textContent=TITLES[x]||'PharmaSafe';
+  currentSection=x;
+  // No-input sections load themselves automatically the first time you open them.
+  if(x==='recent' && !state.recent.loaded)recent();
+  if(x==='leaderboard' && !state.leaderboard.loaded)leaderboard();
+}
+function esc(x){return String(x??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+/* ---------- de-duplication for grouped counts — AUDITED (see Phase 2 review) ----------
+   openFDA's medicinalproduct/reactionmeddrapt fields are raw, as-submitted
+   text with no normalization, so "paroxetine", "Paroxetine", "paroxetine "
+   (trailing space), and "PAROXETINE." (trailing period — very common in
+   FAERS submissions) are all distinct buckets under the `.exact` count
+   aggregation even though they are unambiguously the same term.
+
+   AUDIT FINDING: patient.reaction only exposes reactionmeddrapt (text),
+   reactionmeddraversionpt (the MedDRA *dictionary version*, not a per-term
+   ID), and reactionoutcome — no standardized numeric code is exposed for
+   the reaction term itself, so a code-based collision-proof merge isn't
+   possible through this endpoint; string normalization is the only option.
+
+   REVISED DECISION (corrected after live testing): an earlier revision of
+   this function stopped stripping trailing punctuation out of caution that
+   two distinct MedDRA terms could theoretically differ only by a trailing
+   character. Live use showed this was overcautious and actively harmful:
+   FAERS's extremely common trailing-period artifact (e.g. "OMEPRAZOLE.")
+   was being kept as a separate, wrongly-ranked entry instead of merging
+   into "OMEPRAZOLE". Two facts make stripping it safe: (1) medicinalproduct
+   is free-text manufacturer/product naming, not MedDRA-coded vocabulary at
+   all, so there is no MedDRA-collision risk for drug names in the first
+   place; and (2) MedDRA preferred terms never legitimately include a
+   trailing period/comma/semicolon/colon as part of the term's own
+   identity — it is definitionally submission noise either way. Trailing
+   punctuation is stripped again below; only whitespace-collapsing,
+   trimming, and case-folding were ever needed for genuine ambiguity risk,
+   and none of these three (including punctuation-stripping) can change
+   which distinct clinical or product term a string represents. */
+function cleanLabel(s){return String(s||'').replace(/\s+/g,' ').trim().replace(/[.,;:]+$/,'').trim();}
+function normKey(s){return cleanLabel(s).toLowerCase();}
+function mergeTermCounts(results){
+  const map=new Map();
+  (results||[]).forEach(r=>{
+    if(!r||!r.term)return;
+    const key=normKey(r.term);
+    if(!key)return;
+    const label=cleanLabel(r.term);
+    const cur=map.get(key);
+    if(!cur)map.set(key,{term:label,count:r.count,bestCount:r.count});
+    else{
+      cur.count+=r.count;
+      if(r.count>cur.bestCount){cur.term=label;cur.bestCount=r.count;}
+    }
+  });
+  return Array.from(map.values()).map(({term,count})=>({term,count})).sort((a,b)=>b.count-a.count);
+}
+function q(s){return '"' + String(s).replace(/"/g,'\\"') + '"'}
+
+/* ---------- FAERS coded-field lookups ---------- */
+const SEX_MAP={'1':'Male','2':'Female','0':'Unknown','':'Unknown'};
+const AGE_UNIT_MAP={'800':'decades','801':'years','802':'months','803':'weeks','804':'days','805':'hours'};
+const AGE_UNIT_SINGULAR={'800':'decade','801':'year','802':'month','803':'week','804':'day','805':'hour'};
+const DRUG_ROLE_MAP={'1':'Suspect','2':'Concomitant','3':'Interacting'};
+function fmtSex(code){
+  if(code===undefined||code===null||String(code).trim()==='')return 'Unknown';
+  const n=Number(code);
+  if(!Number.isNaN(n))return SEX_MAP[String(n)]||'Unknown';
+  return SEX_MAP[String(code).trim()]||'Not reported';
+}
+function fmtAge(age,unit){
+  if(age===undefined||age===null||age==='')return 'Not reported';
+  const n=Number(age);
+  const unitWord=n===1?AGE_UNIT_SINGULAR[unit]:AGE_UNIT_MAP[unit];
+  return unitWord?`${n} ${unitWord}`:`${n}`;
+}
+function fmtRole(code){return DRUG_ROLE_MAP[String(code??'')]||'Not reported';}
+function dq(drug){return 'patient.drug.medicinalproduct:'+q(drug)}
+function rq(rx){return 'patient.reaction.reactionmeddrapt:'+q(rx)}
+
+/* ---------- drug name resolution: synonyms + typo tolerance ----------
+   openFDA's medicinalproduct field is raw, as-submitted text — it is NOT
+   normalized to a single generic name, so "paracetamol" and "acetaminophen"
+   (same drug, different regional names) exist as literally different strings
+   in the data. openFDA's docs confirm only the `*` wildcard operator is
+   supported (no documented fuzzy/`~` search), so typo tolerance here is built
+   from confirmed-safe techniques only: a curated synonym list, plus a
+   trailing-wildcard retry for missing/extra letters at the end of a word. */
+const DRUG_SYNONYMS={
+  'paracetamol':['acetaminophen'],'acetaminophen':['paracetamol'],
+  'salbutamol':['albuterol'],'albuterol':['salbutamol'],
+  'adrenaline':['epinephrine'],'epinephrine':['adrenaline'],
+  'noradrenaline':['norepinephrine'],'norepinephrine':['noradrenaline'],
+  'frusemide':['furosemide'],'furosemide':['frusemide'],
+  'diclofenac':['voltaren'],'voltaren':['diclofenac'],
+  'ibuprofen':['brufen','advil','motrin'],'brufen':['ibuprofen'],'advil':['ibuprofen'],'motrin':['ibuprofen'],
+  'aspirin':['acetylsalicylic acid','asa'],'acetylsalicylic acid':['aspirin'],
+  'diazepam':['valium'],'valium':['diazepam'],
+  'lorazepam':['ativan'],'ativan':['lorazepam'],
+  'alprazolam':['xanax'],'xanax':['alprazolam'],
+  'sertraline':['zoloft'],'zoloft':['sertraline'],
+  'fluoxetine':['prozac'],'prozac':['fluoxetine'],
+  'atorvastatin':['lipitor'],'lipitor':['atorvastatin'],
+  'simvastatin':['zocor'],'zocor':['simvastatin'],
+  'omeprazole':['prilosec','losec'],'prilosec':['omeprazole'],'losec':['omeprazole'],
+  'esomeprazole':['nexium'],'nexium':['esomeprazole'],
+  'metformin':['glucophage'],'glucophage':['metformin'],
+  'levothyroxine':['synthroid','thyroxine'],'synthroid':['levothyroxine'],'thyroxine':['levothyroxine'],
+  'warfarin':['coumadin'],'coumadin':['warfarin'],
+  'amoxicillin':['amoxil'],'amoxil':['amoxicillin'],
+  'metoprolol':['lopressor','toprol'],'lopressor':['metoprolol'],'toprol':['metoprolol'],
+  'lisinopril':['zestril','prinivil'],'zestril':['lisinopril'],'prinivil':['lisinopril'],
+  'amlodipine':['norvasc'],'norvasc':['amlodipine'],
+  'losartan':['cozaar'],'cozaar':['losartan'],
+  'hydrochlorothiazide':['hctz','microzide'],'hctz':['hydrochlorothiazide'],
+  'gabapentin':['neurontin'],'neurontin':['gabapentin'],
+  'tramadol':['ultram'],'ultram':['tramadol'],
+  'oxycodone':['oxycontin'],'oxycontin':['oxycodone'],
+  'hydrocodone':['vicodin','norco'],'vicodin':['hydrocodone'],'norco':['hydrocodone'],
+  'cetirizine':['zyrtec'],'zyrtec':['cetirizine'],
+  'loratadine':['claritin'],'claritin':['loratadine'],
+  'montelukast':['singulair'],'singulair':['montelukast'],
+  'clopidogrel':['plavix'],'plavix':['clopidogrel'],
+  'quetiapine':['seroquel'],'seroquel':['quetiapine'],
+  'risperidone':['risperdal'],'risperdal':['risperidone'],
+  'olanzapine':['zyprexa'],'zyprexa':['olanzapine'],
+  'aripiprazole':['abilify'],'abilify':['aripiprazole'],
+  'venlafaxine':['effexor'],'effexor':['venlafaxine'],
+  'duloxetine':['cymbalta'],'cymbalta':['duloxetine'],
+  'bupropion':['wellbutrin'],'wellbutrin':['bupropion'],
+  'zolpidem':['ambien'],'ambien':['zolpidem'],
+  'methylphenidate':['ritalin','concerta'],'ritalin':['methylphenidate'],'concerta':['methylphenidate'],
+  'prednisolone':['prelone'],'prednisone':['deltasone'],'deltasone':['prednisone'],
+  'ranitidine':['zantac'],'zantac':['ranitidine'],
+  'famotidine':['pepcid'],'pepcid':['famotidine'],
+  'naproxen':['aleve','naprosyn'],'aleve':['naproxen'],'naprosyn':['naproxen'],
+  'celecoxib':['celebrex'],'celebrex':['celecoxib'],
+  'meloxicam':['mobic'],'mobic':['meloxicam'],
+  'spironolactone':['aldactone'],'aldactone':['spironolactone'],
+  'azithromycin':['zithromax','z-pack'],'zithromax':['azithromycin'],
+  'ciprofloxacin':['cipro'],'cipro':['ciprofloxacin'],
+  'doxycycline':['vibramycin'],'vibramycin':['doxycycline'],
+};
+function drugSynonyms(name){
+  const key=String(name||'').trim().toLowerCase();
+  return DRUG_SYNONYMS[key]||[];
+}
+
+/* ---------- reaction/MedDRA PT synonyms: lay symptom terms ↔ the terms
+   FAERS reports actually use. FAERS codes reactions to MedDRA preferred
+   terms, which frequently differ from how a patient or clinician would say
+   a symptom in plain language ("throwing up" vs "vomiting"), and often use
+   British/international spelling ("diarrhoea", "oedema", "anaemia") even in
+   US-submitted reports. This dictionary + the wildcard/CT-search fallbacks
+   below exist so a lay search term still finds the matching PT. */
+const REACTION_SYNONYMS={
+  'heart attack':['myocardial infarction'],'myocardial infarction':['heart attack'],
+  'stroke':['cerebrovascular accident'],'cerebrovascular accident':['stroke'],
+  'throwing up':['vomiting'],'vomiting':['throwing up'],
+  'feeling sick':['nausea'],
+  'itching':['pruritus'],'pruritus':['itching'],
+  'swelling':['oedema','edema'],'swollen':['oedema','edema'],
+  'edema':['oedema'],'oedema':['edema'],
+  'shortness of breath':['dyspnoea'],'difficulty breathing':['dyspnoea'],'dyspnea':['dyspnoea'],'dyspnoea':['dyspnea'],
+  'high blood pressure':['hypertension'],'low blood pressure':['hypotension'],
+  'high blood sugar':['hyperglycaemia'],'hyperglycemia':['hyperglycaemia'],'hyperglycaemia':['hyperglycemia'],
+  'low blood sugar':['hypoglycaemia'],'hypoglycemia':['hypoglycaemia'],'hypoglycaemia':['hypoglycemia'],
+  'kidney failure':['renal failure'],'liver failure':['hepatic failure'],'liver damage':['hepatotoxicity'],
+  'seizure':['convulsion'],'fits':['convulsion'],'convulsions':['convulsion'],
+  'passing out':['syncope'],'fainting':['syncope'],
+  'heart palpitations':['palpitations'],'racing heart':['tachycardia'],'fast heartbeat':['tachycardia'],
+  'slow heart rate':['bradycardia'],'irregular heartbeat':['arrhythmia'],
+  'blood clot':['thrombosis'],'stomach pain':['abdominal pain'],'stomach ache':['abdominal pain'],
+  'weight gain':['weight increased'],'weight loss':['weight decreased'],
+  'hair loss':['alopecia'],'muscle pain':['myalgia'],'joint pain':['arthralgia'],
+  'numbness':['hypoaesthesia','paraesthesia'],'tingling':['paraesthesia'],'paresthesia':['paraesthesia'],'paraesthesia':['paresthesia'],
+  'confusion':['confusional state'],'memory loss':['amnesia'],
+  'suicidal thoughts':['suicidal ideation'],
+  'drowsiness':['somnolence'],'sleepiness':['somnolence'],
+  'blurred vision':['vision blurred'],'ringing in ears':['tinnitus'],'hearing loss':['deafness'],
+  'difficulty swallowing':['dysphagia'],'excessive thirst':['polydipsia'],'frequent urination':['pollakiuria'],
+  'blood in urine':['haematuria'],'hematuria':['haematuria'],'haematuria':['hematuria'],
+  'bloating':['abdominal distension'],'gas':['flatulence'],'heartburn':['dyspepsia'],
+  'acid reflux':['gastrooesophageal reflux disease'],
+  'yellowing of skin':['jaundice'],'yellow skin':['jaundice'],
+  'bruising':['ecchymosis'],'bleeding':['haemorrhage'],'hemorrhage':['haemorrhage'],'haemorrhage':['hemorrhage'],
+  'fever':['pyrexia'],'sweating':['hyperhidrosis'],'weakness':['asthenia'],
+  'difficulty walking':['gait disturbance'],'loss of appetite':['decreased appetite'],
+  'hallucinations':['hallucination'],'shaking':['tremor'],'muscle spasm':['muscle spasms'],
+  'hives':['urticaria'],'difficulty concentrating':['disturbance in attention'],
+  'irregular periods':['menstruation irregular'],'miscarriage':['abortion spontaneous'],
+  'birth defect':['congenital anomaly'],'anemia':['anaemia'],'anaemia':['anemia'],
+};
+function reactionSynonyms(name){
+  const key=String(name||'').trim().toLowerCase();
+  return REACTION_SYNONYMS[key]||[];
+}
+
+/* ---------- RxNorm: comprehensive drug-name normalization ----------
+   NLM's RxNorm covers essentially every US-marketed ingredient and brand
+   name (tens of thousands of concepts) plus recognized international
+   synonyms (e.g. paracetamol↔acetaminophen) — far beyond any hand-curated
+   list. Its REST API is free, requires no key, and officially supports
+   CORS, so it can be called directly from the browser. Used as a
+   comprehensive fallback layer when the fast local dictionary doesn't
+   already know the term. */
+const RXNORM_BASE='https://rxnav.nlm.nih.gov/REST';
+async function rxnormGet(path){
+  const ctl=new AbortController();
+  const t=setTimeout(()=>ctl.abort(),4000);
+  try{
+    const r=await fetch(RXNORM_BASE+path,{signal:ctl.signal});
+    if(!r.ok)return null;
+    return await r.json();
+  }catch(e){return null;}
+  finally{clearTimeout(t);}
+}
+async function rxcuiProperName(rxcui){
+  const j=await rxnormGet('/rxcui/'+encodeURIComponent(rxcui)+'/property.json?propName=RxNorm%20Name');
+  return j?.propConceptGroup?.propConcept?.[0]?.propValue||null;
+}
+/** Normalized RxNorm search — matches across word order, salts, abbreviations,
+ * and recognized synonyms (this is what catches paracetamol→acetaminophen). */
+async function rxnormNormalized(name){
+  const j=await rxnormGet('/rxcui.json?name='+encodeURIComponent(name)+'&search=2');
+  const rxcui=j?.idGroup?.rxnormId?.[0];
+  if(!rxcui)return null;
+  return await rxcuiProperName(rxcui);
+}
+/** Fuzzy/approximate RxNorm search — corrects misspellings, missing/extra
+ * words, and known abbreviations across RxNorm's full drug corpus. */
+async function rxnormApproximate(name){
+  const j=await rxnormGet('/approximateTerm.json?term='+encodeURIComponent(name)+'&maxEntries=5');
+  const candidates=j?.approximateGroup?.candidate||[];
+  const names=[];
+  const resolved=await Promise.all(candidates.slice(0,3).map(c=>c.rxcui?rxcuiProperName(c.rxcui):null));
+  for(const nm of resolved)if(nm && !names.includes(nm))names.push(nm);
+  return names;
+}
+
+/* ---------- NLM Clinical Table Search Service: lay symptom → clinical term
+   ----------
+   Free, no-key, CORS-enabled autocomplete API over Regenstrief's Medical
+   Conditions table (consumer-friendly names, primary clinical names, and
+   thousands of word/full-term synonyms). Used as a second, much broader
+   layer of reaction-term normalization beyond the local dictionary above —
+   the same role RxNorm plays for drug names — so a plain-language complaint
+   like "trouble breathing" can still resolve to the clinical wording FAERS
+   is more likely to use. */
+const CT_CONDITIONS_BASE='https://clinicaltables.nlm.nih.gov/api/conditions/v3/search';
+async function conditionsMatches(term){
+  const ctl=new AbortController();
+  const t=setTimeout(()=>ctl.abort(),4000);
+  try{
+    const url=CT_CONDITIONS_BASE+'?terms='+encodeURIComponent(term)+
+      '&sf=consumer_name,primary_name,word_synonyms,synonyms&df=consumer_name,primary_name&maxList=6';
+    const r=await fetch(url,{signal:ctl.signal});
+    if(!r.ok)return [];
+    const j=await r.json();
+    const rows=j?.[3]||[];
+    const names=[];
+    rows.forEach(row=>(row||[]).forEach(v=>{if(v && !names.includes(v))names.push(v);}));
+    return names;
+  }catch(e){return [];}
+  finally{clearTimeout(t);}
+}
+
+/** Tries the name as typed, then the fast local synonym dictionary, then
+ * RxNorm's full-corpus normalized + approximate matching, then a wildcard
+ * retry for missing/extra trailing letters. Returns {name, query, matched,
+ * tried} where `name` is whichever term actually returned results (or the
+ * original if nothing did), and `matched` is true only if a substitution
+ * happened. */
+async function resolveDrugName(original){
+  const tried=[];
+  const seen=new Set();
+  async function attempt(candidate){
+    const key=candidate.toLowerCase();
+    if(seen.has(key))return null;
+    seen.add(key);
+    tried.push(candidate);
+    const c=await total(dq(candidate));
+    return c>0?{name:candidate,count:c}:null;
+  }
+
+  // Layer 1a: exact term as typed — no normalization, nothing to disclose.
+  const exactHit=await attempt(original);
+  if(exactHit)return {name:exactHit.name, query:dq(exactHit.name), matched:false, method:'exact', tried, count:exactHit.count};
+
+  // Layer 1b: local hand-curated synonym dictionary (same-substance alternate names).
+  for(const candidate of drugSynonyms(original)){
+    const hit=await attempt(candidate);
+    if(hit)return {name:hit.name, query:dq(hit.name), matched:true, method:'local_synonym', tried, count:hit.count};
+  }
+
+  // Layer 2: RxNorm normalized search — catches synonyms/brand-generic across
+  // essentially the entire US drug corpus, not just the local list.
+  const normalized=await rxnormNormalized(original);
+  if(normalized){
+    const hit=await attempt(normalized);
+    if(hit)return {name:hit.name, query:dq(hit.name), matched:true, method:'rxnorm_normalized', tried, count:hit.count};
+  }
+
+  // Layer 3: RxNorm approximate/fuzzy search — corrects typos and missing
+  // words against the same full corpus. This is a suggested closest match,
+  // not a confirmed equivalence, and is labeled as such to the user.
+  const approx=await rxnormApproximate(original);
+  for(const candidate of approx){
+    const hit=await attempt(candidate);
+    if(hit)return {name:hit.name, query:dq(hit.name), matched:true, method:'rxnorm_approximate', tried, count:hit.count};
+  }
+
+  // Layer 4: last-resort local wildcard for missing/extra trailing letters —
+  // confirmed-safe `*` operator, unquoted, single word only. Explicitly not
+  // an equivalence claim — a raw prefix match that may include unrelated terms.
+  const single=original.trim();
+  if(single && !single.includes(' ') && single.length>=4){
+    for(const cut of [1,2]){
+      if(single.length-cut<3)break;
+      const stem=single.slice(0,single.length-cut);
+      const wq='patient.drug.medicinalproduct:'+stem+'*';
+      tried.push(stem+'*');
+      const c=await total(wq);
+      if(c>0)return {name:stem+'*', query:wq, matched:true, wildcard:true, method:'wildcard', tried, count:c};
+    }
+  }
+  return {name:original, query:dq(original), matched:false, method:'exact', tried, count:0};
+}
+
+/** Same shape/contract as resolveDrugName, for reaction/MedDRA PT terms:
+ * tries the term as typed, then the local lay-term↔PT dictionary, then the
+ * NLM Clinical Table conditions service as a broad normalization layer,
+ * then a trailing-wildcard retry. Returns {name, query, matched, wildcard,
+ * method, tried, count}. */
+async function resolveReactionName(original){
+  const tried=[];
+  const seen=new Set();
+  async function attempt(candidate){
+    const key=candidate.toLowerCase();
+    if(seen.has(key))return null;
+    seen.add(key);
+    tried.push(candidate);
+    const c=await total(rq(candidate));
+    return c>0?{name:candidate,count:c}:null;
+  }
+
+  // Layer 1a: exact term as typed — no normalization, nothing to disclose.
+  const exactHit=await attempt(original);
+  if(exactHit)return {name:exactHit.name, query:rq(exactHit.name), matched:false, method:'exact', tried, count:exactHit.count};
+
+  // Layer 1b: local lay-term/spelling dictionary.
+  for(const candidate of reactionSynonyms(original)){
+    const hit=await attempt(candidate);
+    if(hit)return {name:hit.name, query:rq(hit.name), matched:true, method:'local_synonym', tried, count:hit.count};
+  }
+
+  // Layer 2: NLM Clinical Table conditions search — catches plain-language
+  // symptom descriptions the local dictionary doesn't have an entry for.
+  // This is a suggested clinical-term mapping, not a confirmed equivalence.
+  const consumerMatches=await conditionsMatches(original);
+  for(const candidate of consumerMatches){
+    const hit=await attempt(candidate);
+    if(hit)return {name:hit.name, query:rq(hit.name), matched:true, method:'nlm_clinical_tables', tried, count:hit.count};
+  }
+
+  // Layer 3: last-resort local wildcard for missing/extra trailing letters.
+  const single=original.trim();
+  if(single && !single.includes(' ') && single.length>=4){
+    for(const cut of [1,2]){
+      if(single.length-cut<3)break;
+      const stem=single.slice(0,single.length-cut);
+      const wq='patient.reaction.reactionmeddrapt:'+stem+'*';
+      tried.push(stem+'*');
+      const c=await total(wq);
+      if(c>0)return {name:stem+'*', query:wq, matched:true, wildcard:true, method:'wildcard', tried, count:c};
+    }
+  }
+  return {name:original, query:rq(original), matched:false, method:'exact', tried, count:0};
+}
+
+/* ---------- search-normalization transparency (Phase 2, item 1) ----------
+   Rule: never state or imply two terms are "the same" unless the specific
+   source used actually supports that. Local-dictionary and RxNorm-normalized
+   matches are presented as genuine equivalences (both are curated/authority
+   sources for drug naming). RxNorm-approximate and NLM Clinical Table
+   matches are presented only as "closest candidate" / "suggested mapping" —
+   not confirmed equivalence. Wildcard matches are presented only as a raw
+   prefix search with no equivalence claim at all. */
+const NORMALIZATION_LABELS={
+  local_synonym:'Local synonym dictionary',
+  rxnorm_normalized:'RxNorm — normalized match',
+  rxnorm_approximate:'RxNorm — approximate/fuzzy match',
+  nlm_clinical_tables:'NLM Clinical Table Search',
+  wildcard:'Wildcard (prefix) search'
+};
+const NORMALIZATION_REASONS={
+  local_synonym:'This is a known alternate name for the same substance (for example, an international non-proprietary name vs. the US adopted name), from a hand-curated reference list built into this app.',
+  rxnorm_normalized:'RxNorm (U.S. National Library of Medicine) identifies this as the same or a directly equivalent drug concept.',
+  rxnorm_approximate:"RxNorm's approximate/fuzzy matching returned this as the closest candidate in its database. This is a suggested match, not a confirmed equivalence.",
+  nlm_clinical_tables:'Matched via the NLM Clinical Table Search Service, which maps common/lay language to standardized clinical term suggestions. This is a suggested mapping, not a confirmed one-to-one equivalence.',
+  wildcard:'No exact or synonym match was found for the term as typed. This is a raw prefix (wildcard) search on the underlying text field and may include partially matching or unrelated terms that merely share the same leading letters.'
+};
+function matchNoteHtml(res,original,inputId){
+  if(!res.matched)return '';
+  const methodLabel=NORMALIZATION_LABELS[res.method]||res.method||'Unknown';
+  const reason=NORMALIZATION_REASONS[res.method]||'';
+  const setter=inputId
+    ? `document.getElementById(${esc(JSON.stringify(inputId))}).value=${esc(JSON.stringify(original))};`
+    : `this.closest('.card').querySelector('input').value=${esc(JSON.stringify(original))};`;
+  return `<div class="normblock">
+    <div class="normrow"><span class="normlbl">User search</span><span class="normval">${esc(original)}</span></div>
+    <div class="normrow"><span class="normlbl">FDA query</span><span class="normval">${esc(res.query)}</span></div>
+    <div class="normrow"><span class="normlbl">Normalization method</span><span class="normval">${esc(methodLabel)}</span></div>
+    <div class="normrow"><span class="normlbl">Reason</span><span class="normval">${esc(reason)}</span></div>
+    <a href="#" onclick="event.preventDefault();${setter}return false;" class="normrevert">Search only the exact term "${esc(original)}" instead — no normalization</a>
+  </div>`;
+}
+
+/* ---------- Method &amp; Data expandable panel (Phase 2, item 6) ----------
+   Native <details>/<summary> — zero added JS state, cannot break existing
+   click handlers, and is keyboard/accessible by default. rows: array of
+   [label, htmlValue] pairs rendered Source → Query → Filters → Counts →
+   Formula → Result (tools pass only the rows relevant to what they do). */
+function methodPanel(rows){
+  return `<details class="methodpanel">
+    <summary>Method &amp; data ▾</summary>
+    <div class="methodbody">
+      ${rows.map(([label,val])=>`<div class="methodrow"><div class="mlbl">${esc(label)}</div><div class="mval">${val}</div></div>`).join('')}
+    </div>
+  </details>`;
+}
+/* Shared FAERS limitation summary — folded into every Method & Data panel's
+   final row rather than shown as a separate banner, per the brief to stay
+   concise and contextual rather than turning the app into a warning page. */
+const FAERS_LIMITATIONS_HTML=`<ul class="readpoints" style="margin-top:0">
+  <li><span class="ic info">i</span><span>Report counts are not incidence — there is no reliable denominator of how many people took the drug, and reports can be duplicated, incomplete, or affected by under/over-reporting.</span></li>
+  <li><span class="ic info">i</span><span>A report existing does not establish that the drug caused the reaction.</span></li>
+</ul>`;
+
+/* ---------- live drug-name autocomplete ----------
+   Suggests as-you-type from two sources: (1) the local synonym dictionary,
+   instantly, for well-known brand/generic/international names; and (2) real
+   openFDA data — a wildcard search on the drug field, counted/aggregated so
+   suggestions are actual medicinalproduct strings that exist in FAERS,
+   ranked by report volume. Because suggestions come straight from the same
+   field the tools search, picking one is guaranteed to return results. */
+let acDebounce=null, acActiveInput=null, acItems=[], acIndex=-1, acToken=0;
+const acCache=new Map(); // key: "type|prefix" -> {ts, data} — repeated/backspaced prefixes resolve instantly
+const AC_CACHE_TTL=120000;
+
+function localDictMatches(prefix,type){
+  const p=prefix.toLowerCase();
+  const dict=type==='reaction'?REACTION_SYNONYMS:DRUG_SYNONYMS;
+  const out=[];
+  for(const key of Object.keys(dict)){
+    if(key.startsWith(p) && key!==p){
+      out.push({label:key, tag:'related'});
+      if(out.length>=5)break;
+    }
+  }
+  return out;
+}
+
+async function fdaDrugMatches(prefix,type){
+  const field=type==='reaction'?'patient.reaction.reactionmeddrapt':'patient.drug.medicinalproduct';
+  const cacheKey=type+'|'+prefix.toLowerCase();
+  const cached=acCache.get(cacheKey);
+  if(cached && (Date.now()-cached.ts)<AC_CACHE_TTL)return cached.data;
+  try{
+    // limit:50 caps how many terms openFDA's aggregation computes/returns
+    // (its default with no limit is 1000) — this app only ever shows the
+    // top 8, so requesting far fewer keeps each keystroke's query cheap.
+    const x=await fda({search:field+':'+prefix+'*',count:field+'.exact',limit:'50'});
+    const merged=mergeTermCounts((x.results||[]).map(r=>({term:r.term,count:r.count})));
+    const data=merged.slice(0,8).map(r=>({label:r.term,tag:'FDA',count:r.count}));
+    acCache.set(cacheKey,{ts:Date.now(),data});
+    return data;
+  }catch(e){return [];}
+}
+
+function renderAcBox(items,loading){
+  const box=$('drugAcBox');
+  acItems=items; acIndex=-1;
+  if(!items.length && !loading){box.style.display='none';return;}
+  let html=items.map((it,i)=>`<div class="ac-item" data-i="${i}" onmousedown="event.preventDefault();selectAcItem(${i})">
+      <span>${esc(it.label)}</span><span class="ac-tag">${it.tag==='FDA'?(it.count?it.count.toLocaleString()+' reports':'FDA'):'related'}</span>
+    </div>`).join('');
+  if(loading)html+='<div class="ac-loading">Searching openFDA…</div>';
+  box.innerHTML=html||'<div class="ac-empty">No matches found</div>';
+  box.style.display='block';
+}
+function positionAcBox(input){
+  const box=$('drugAcBox'), r=input.getBoundingClientRect();
+  box.style.left=(r.left+window.scrollX)+'px';
+  box.style.top=(r.bottom+window.scrollY+4)+'px';
+  box.style.width=r.width+'px';
+}
+function closeAcBox(){
+  $('drugAcBox').style.display='none';
+  acActiveInput=null; acItems=[]; acIndex=-1;
+}
+function selectAcItem(i){
+  const it=acItems[i]; if(!it||!acActiveInput)return;
+  const input=acActiveInput;
+  input.value=it.label;
+  closeAcBox();
+  input.focus();
+}
+async function onDrugInput(e){
+  const input=e.target;
+  const type=input.dataset.acType||'drug';
+  acActiveInput=input;
+  const val=input.value.trim();
+  const myToken=++acToken;
+  if(val.length<3){closeAcBox();return;}
+  positionAcBox(input);
+  const local=localDictMatches(val,type);
+  renderAcBox(local,true);
+  clearTimeout(acDebounce);
+  acDebounce=setTimeout(async()=>{
+    const fdaMatches=await fdaDrugMatches(val,type);
+    if(myToken!==acToken)return; // a newer keystroke superseded this request
+    const seen=new Set(local.map(x=>x.label.toLowerCase()));
+    const merged=[...local];
+    for(const m of fdaMatches){
+      const k=m.label.toLowerCase();
+      if(!seen.has(k)){seen.add(k);merged.push(m);}
+    }
+    renderAcBox(merged.slice(0,10),false);
+  },200);
+}
+function onDrugKeydown(e){
+  const box=$('drugAcBox');
+  if(box.style.display!=='block'||!acItems.length)return;
+  if(e.key==='ArrowDown'){e.preventDefault();acIndex=Math.min(acIndex+1,acItems.length-1);highlightAc();}
+  else if(e.key==='ArrowUp'){e.preventDefault();acIndex=Math.max(acIndex-1,0);highlightAc();}
+  else if(e.key==='Enter'){if(acIndex>=0){e.preventDefault();selectAcItem(acIndex);}else closeAcBox();}
+  else if(e.key==='Escape'){closeAcBox();}
+}
+function highlightAc(){
+  $('drugAcBox').querySelectorAll('.ac-item').forEach((el,i)=>el.classList.toggle('active',i===acIndex));
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.drugac') && !e.target.closest('#drugAcBox'))closeAcBox();
+});
+window.addEventListener('resize',()=>{if(acActiveInput)positionAcBox(acActiveInput);});
+function wireAutocomplete(){
+  document.querySelectorAll('.drugac').forEach(input=>{
+    input.addEventListener('input',onDrugInput);
+    input.addEventListener('keydown',onDrugKeydown);
+    input.addEventListener('blur',()=>setTimeout(()=>{if(document.activeElement!==input)closeAcBox();},150));
+  });
+}
+wireAutocomplete();
+
+/* ---------- theme ---------- */
+function toggleTheme(){
+  const cur=document.documentElement.getAttribute('data-theme');
+  const next=cur==='dark'?'light':'dark';
+  if(next==='dark'){document.documentElement.setAttribute('data-theme','dark');$('themeBtn').innerHTML=ICONS.sun;}
+  else{document.documentElement.removeAttribute('data-theme');$('themeBtn').innerHTML=ICONS.moon;}
+}
+
+/* ---------- loading bar ---------- */
+let loadCount=0;
+function loadStart(){loadCount++;$('loadbar').classList.add('active');}
+function loadEnd(){loadCount=Math.max(0,loadCount-1);if(loadCount===0)$('loadbar').classList.remove('active');}
+
+/* ---------- resilient fetch layer ---------- */
+const PROXIES=[
+  u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
+  u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u),
+  u=>'https://corsproxy.io/?url='+encodeURIComponent(u)
+];
+let workingMode=null;
+// Short-lived response cache + request de-duplication keep repeated tool calls fast
+// without making stale live-data calls stick around.
+const fdaCache=new Map();
+const fdaInflight=new Map();
+// Keep live results fresh while avoiding repeated network work during a search.
+const FDA_CACHE_TTL=60000;
+
+async function rawGet(url,timeoutMs){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),timeoutMs||9000);
+  try{
+    return await fetch(url,{cache:'no-store',signal:controller.signal});
+  }finally{
+    clearTimeout(timer);
+  }
+}
+async function handleResp(r){
+  if(r.status===404){lastFetchAt=Date.now();return {meta:{results:{total:0}},results:[]};}
+  if(!r.ok){
+    let msg='Request failed ('+r.status+')';
+    try{const j=await r.json();if(j.error&&j.error.message)msg=j.error.message;}catch(e){}
+    throw new Error(msg);
+  }
+  lastFetchAt=Date.now();
+  return r.json();
+}
+async function fda(params,base){
+  loadStart();
+  try{
+    const url=new URL(base||BASE);
+    Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));
+    const target=url.toString();
+
+    const cached=fdaCache.get(target);
+    if(cached && Date.now()-cached.ts<FDA_CACHE_TTL){setStatus(true);return cached.data;}
+    if(fdaInflight.has(target))return await fdaInflight.get(target);
+
+    const request=(async()=>{
+      // Prefer the last known-good transport, but if it fails, immediately
+      // re-check direct openFDA and the fallback proxies. A stale transport
+      // choice is cleared as soon as it fails so the app can recover on the
+      // next request instead of appearing permanently offline.
+      const orderedModes=[];
+      if(workingMode!==null)orderedModes.push(workingMode);
+      if(!orderedModes.includes('direct'))orderedModes.push('direct');
+      for(let i=0;i<PROXIES.length;i++)if(!orderedModes.includes(i))orderedModes.push(i);
+      const errs=[];
+      for(const mode of orderedModes){
+        const url=mode==='direct'?target:PROXIES[mode](target);
+        try{
+          const r=await rawGet(url,7000);
+          const data=await handleResp(r);
+          workingMode=mode;
+          fdaCache.set(target,{ts:Date.now(),data});
+          setStatus(true);
+          return data;
+        }catch(e){
+          errs.push((typeof mode==='number'?'proxy'+mode:'direct')+': '+(e?.message||'request failed'));
+          if(mode===workingMode)workingMode=null;
+        }
+      }
+      workingMode=null;
+      throw Object.assign(new Error('network-blocked'),{isNetworkBlock:true,errs});
+    })();
+    fdaInflight.set(target,request);
+    try{return await request;}finally{fdaInflight.delete(target);}
+  }finally{loadEnd();}
+}
+
+async function total(search){
+  const p={limit:1}; if(search)p.search=search;
+  const x=await fda(p);
+  return Number(x?.meta?.results?.total||0);
+}
+function ci(a,b,c,d){
+  a+=.5;b+=.5;c+=.5;d+=.5;
+  const r=(a*d)/(b*c), se=Math.sqrt(1/a+1/b+1/c+1/d);
+  return [r, Math.exp(Math.log(r)-1.96*se), Math.exp(Math.log(r)+1.96*se)];
+}
+function prr(a,b,c,d){a+=.5;b+=.5;c+=.5;d+=.5;return (a/(a+b))/(c/(c+d));}
+
+async function withBtn(id,fn,silent){
+  if(silent){await fn();return;}
+  const btn=$(id);if(!btn||btn.disabled)return;
+  const old=btn.textContent;btn.disabled=true;btn.setAttribute('aria-busy','true');btn.textContent='Working…';
+  try{await fn();trackToolUse();}finally{btn.disabled=false;btn.removeAttribute('aria-busy');btn.textContent=old;}
+}
+function flashUpdated(id){const el=$(id);if(!el)return;el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');}
+function skeleton(rows){
+  return `<div style="margin-top:10px">${Array.from({length:rows||4}).map((_,i)=>`<div class="skel skel-line" style="width:${85-i*7}%"></div>`).join('')}</div>`;
+}
+// Native alert() is silently blocked in some mobile/PWA/embedded-webview contexts,
+// which makes a validation message look like the button did nothing at all.
+// This renders the same message directly in the page instead, so it always shows.
+function needInput(outId,msg){
+  $(outId).innerHTML=`<p class="note" style="margin-top:10px;color:var(--signal)">${esc(msg)}</p>`;
+}
+function networkErrorHTML(errs){
+  return `<div class="card" style="border-color:#b3261e55;background:var(--signal-soft)">
+    <h3 style="color:var(--signal)">Can't reach openFDA from this preview</h3>
+    <p class="note">Every connection attempt failed the same way (${esc(errs.join(' | '))}). When that happens across unrelated servers at once, it means <b>this preview window isn't permitted to make external network calls</b> — a viewer sandbox limit, not a bug in the page.</p>
+    <p class="note"><b>Fix:</b> download this file and open it in a real browser tab (Safari/Chrome) instead of the in-chat preview — Share → Open in Safari, not the built-in viewer.</p>
+    <button class="btn gray" onclick="location.reload()">Retry now</button>
+  </div>`;
+}
+function errHTML(e){return e && e.isNetworkBlock ? networkErrorHTML(e.errs) : `<p class="err">${esc(e.message)}</p>`;}
+
+function csvDownload(filename,rows){
+  const csv=rows.map(r=>r.map(c=>{const s=String(c??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');const url=URL.createObjectURL(blob);a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200);
+}
+
+/* PDF is loaded only when a user actually asks for a PDF. */
+let pdfLibPromise=null;
+function loadScriptOnce(src,id){
+  return new Promise((resolve,reject)=>{
+    const existing=id&&document.getElementById(id);
+    if(existing){
+      if(existing.dataset.loaded==='1')return resolve();
+      existing.addEventListener('load',resolve,{once:true});existing.addEventListener('error',()=>reject(new Error('PDF library could not be loaded.')),{once:true});return;
+    }
+    const el=document.createElement('script');if(id)el.id=id;el.src=src;el.async=true;
+    el.onload=()=>{el.dataset.loaded='1';resolve()};el.onerror=()=>reject(new Error('PDF library could not be loaded. Please check your connection and try again.'));
+    document.head.appendChild(el);
+  });
+}
+async function ensurePdfLibs(){
+  if(window.jspdf?.jsPDF && window.jspdf.jsPDF.API?.autoTable)return;
+  if(!pdfLibPromise){
+    pdfLibPromise=loadScriptOnce('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js','pharmasafe-jspdf')
+      .then(()=>loadScriptOnce('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js','pharmasafe-jspdf-autotable'));
+  }
+  await pdfLibPromise;
+}
+async function pdfDownload(filename,title,headers,rows,opts={}){
+  await ensurePdfLibs();
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:opts.orientation||'landscape',unit:'mm',format:'a4'});
+  doc.setFontSize(15);doc.setTextColor(25);doc.text(title,14,15);
+  doc.setFontSize(8.5);doc.setTextColor(105);doc.text('Source: FDA AEMS/FAERS via openFDA · Generated '+new Date().toLocaleString(),14,21);
+  if(opts.subtitle)doc.text(String(opts.subtitle),14,26);
+  doc.autoTable({startY:opts.subtitle?31:26,head:[headers],body:rows,styles:{fontSize:8,cellWidth:'wrap',valign:'top'},headStyles:{fillColor:[21,94,99]},columnStyles:opts.columnStyles||{},margin:{left:14,right:14}});
+  doc.save(filename);
+}
+async function runPdfExport(btn,job){
+  if(window.__pharmaPdfBusy)return;
+  window.__pharmaPdfBusy=true;
+  const old=btn?.textContent;if(btn){btn.disabled=true;btn.textContent='Preparing PDF…';btn.setAttribute('aria-busy','true');}
+  try{await job();}catch(e){console.error('PDF export failed:',e);alert(e.message||'PDF export failed. Please try again.');}
+  finally{if(btn){btn.disabled=false;btn.textContent=old;btn.removeAttribute('aria-busy');}window.__pharmaPdfBusy=false;}
+}
+function exportButton(label,fn){return `<button class="btn ghost" type="button" onclick="${fn}(this)">${label}</button>`;}
+function countUp(el,target){
+  const start=0,dur=700,t0=performance.now();
+  function step(t){
+    const p=Math.min(1,(t-t0)/dur);
+    el.textContent=Math.round(start+(target-start)*(1-Math.pow(1-p,3))).toLocaleString();
+    if(p<1)requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+const PAL=['#0891b2','#7c3aed','#db2777','#d97706','#059669','#2563eb','#dc2626','#65a30d'];
+
+/* ---------- auto-refresh engine ---------- */
+let lastCompareExport=null,lastOutcomeExport=null,lastSignalExport=null,lastCaseExport=null,lastTrendExport=null,lastLeaderboardExport=null;
+const state={
+  drug:{loaded:false,name:null}, rxsearch:{loaded:false,name:null}, compare:{loaded:false,a:null,b:null},
+  signal:{loaded:false,drug:null,rx:null}, outcomes:{loaded:false,name:null},
+  trend:{loaded:false,name:null}, leaderboard:{loaded:false}, recent:{loaded:false}
+};
+let lastFetchAt=null;
+function formatAgo(ts){
+  if(!ts)return '—';
+  const s=Math.floor((Date.now()-ts)/1000);
+  if(s<5)return 'just now';
+  if(s<60)return s+'s ago';
+  const m=Math.floor(s/60); if(m<60)return m+'m ago';
+  const h=Math.floor(m/60); return h+'h ago';
+}
+setInterval(()=>{$('agoTxt').textContent=formatAgo(lastFetchAt);},2000);
+
+let autoRefreshMs=300000, autoTimer=null;
+function setAutoRefresh(ms){
+  autoRefreshMs=Number(ms);
+  if(autoTimer){clearInterval(autoTimer);autoTimer=null;}
+  if(autoRefreshMs>0)autoTimer=setInterval(autoTick,autoRefreshMs);
+}
+function autoTick(){ if(!document.hidden)refreshNow(true); }
+async function refreshNow(silent){
+  await boot(silent);
+  if(currentSection==='recent')await recent(silent);
+  else if(currentSection==='leaderboard')await leaderboard(silent);
+  else if(currentSection==='drug' && state.drug.loaded)await drugSearch(silent);
+  else if(currentSection==='rxsearch' && state.rxsearch.loaded)await reactionSearch(silent);
+  else if(currentSection==='compare' && state.compare.loaded)await compareDrugs(silent);
+  else if(currentSection==='signal' && state.signal.loaded)await signal(silent);
+  else if(currentSection==='outcomes' && state.outcomes.loaded)await outcomes(silent);
+  else if(currentSection==='trend' && state.trend.loaded)await trend(silent);
+}
+document.addEventListener('visibilitychange',()=>{
+  // Catch up immediately when the app is reopened, instead of waiting out a stale interval.
+  if(!document.hidden && lastFetchAt && (Date.now()-lastFetchAt)>autoRefreshMs && autoRefreshMs>0)refreshNow(true);
+});
+
+/* ---------- boot / status ---------- */
+async function boot(silent){
+  try{
+    let x;
+    try{x=await fda({limit:1});}
+    catch(firstErr){
+      // A transient mobile/network hiccup should not flip the global status
+      // to Offline. Recheck once after a short delay before declaring failure.
+      await new Promise(r=>setTimeout(r,350));
+      x=await fda({limit:1});
+    }
+    if(silent)$('total').textContent=Number(x?.meta?.results?.total||0).toLocaleString();
+    else countUp($('total'),Number(x?.meta?.results?.total||0));
+    $('updated').textContent=x?.meta?.last_updated||'Quarterly';
+    setStatus(true);
+    const existingErr=$('bootErr'); if(existingErr)existingErr.remove();
+  }catch(e){
+    setStatus(false);
+    if(!silent){
+      $('total').textContent='—'; $('updated').textContent='—';
+      const existingErr=$('bootErr'); if(existingErr)existingErr.remove();
+      document.querySelector('.hero').insertAdjacentHTML('afterend','<div id="bootErr">'+errHTML(e)+'</div>');
+    }
+  }
+}
+function setStatus(online){
+  const p=$('statusPill');
+  p.className='pill '+(online?'on':'off');
+  $('statusTxt').textContent=online?'Live — openFDA connected':'Offline';
+}
+
+/* ---------- drug analysis ---------- */
+let reactionChart, sexChart;
+async function fetchSexDistribution(searchQuery){
+  for(const field of ['patient.patientsex.exact','patient.patientsex']){
+    try{
+      const r=await fda({search:searchQuery,count:field});
+      if(r && r.results && r.results.length)return r;
+    }catch(e){/* try next field syntax */}
+  }
+  return {results:[]};
+}
+async function drugSearch(silent){
+  await withBtn('drugBtn',async()=>{
+    const n=silent?state.drug.name:$('drugName').value.trim();
+    if(!n)return needInput('drugOut','Enter a drug name to analyze.');
+    if(!silent)$('drugOut').innerHTML=skeleton(5);
+    try{
+      const res=await resolveDrugName(n);
+      const [reports,x,sexX]=await Promise.all([
+        Promise.resolve(res.count),
+        fda({search:res.query,count:'patient.reaction.reactionmeddrapt.exact'}),
+        fetchSexDistribution(res.query)
+      ]);
+      const rx=mergeTermCounts((x.results||[]).map(a=>({term:a.term,count:a.count}))).slice(0,30);
+      const top10=rx.slice(0,10);
+      const displayName=res.wildcard?n:res.name;
+      window.__lastDrugExport={name:displayName,rx};
+      const rows=rx.map(r=>`<tr><td>${esc(r.term)}</td><td>${r.count.toLocaleString()}</td><td><button class="btn gray" style="padding:6px 11px;font-size:11.5px" onclick="useSignal(${esc(JSON.stringify(displayName))},${esc(JSON.stringify(r.term))})">Screen this pair</button></td></tr>`).join('');
+      const sexCounts={Male:0,Female:0,Unknown:0};
+      (sexX.results||[]).forEach(s=>{const label=fmtSex(s.term);sexCounts[label]=(sexCounts[label]||0)+s.count;});
+      const sexData=['Male','Female','Unknown'].map(label=>({label,count:sexCounts[label]}));
+
+      $('drugOut').innerHTML=`
+        ${matchNoteHtml(res,n)}
+        <div class="chips"><span class="chip"><b>${reports.toLocaleString()}</b>&nbsp;total reports</span><span class="chip"><b>${rx.length}</b>&nbsp;distinct reactions (top 30 shown)</span></div>
+        <h4>Top reported reactions</h4>
+        <canvas id="reactChart" height="${Math.max(180,top10.length*28)}"></canvas>
+        <h4>Patient sex distribution</h4>
+        <canvas id="sexChart" height="150"></canvas>
+        ${sexData.every(s=>s.count===0)?'<p class="note">openFDA did not return sex data for this drug — it may not be recorded in these reports.</p>':''}
+        <h4>All matched reaction terms</h4>
+        <table><tr><th>Reaction term</th><th>Reports</th><th></th></tr>${rows||'<tr><td colspan=3>No reaction data found.</td></tr>'}</table>
+        <p class="note">Reaction counts are report counts returned by openFDA — not incidence rates, and not adjusted for exposure.</p>
+        ${methodPanel([
+          ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Query',esc(res.query)],
+          ['Counts',`${reports.toLocaleString()} total reports · ${rx.length} distinct reaction-term rows after merge`],
+          ['Limitations',FAERS_LIMITATIONS_HTML]
+        ])}
+        <div class="actions">
+          <button class="btn ghost" type="button" onclick='exportDrugCSV(${esc(JSON.stringify(displayName))},${esc(JSON.stringify(rx))})'>Export CSV</button>
+          ${exportButton('Export PDF','exportDrugPDF')}
+          <button class="btn ghost" type="button" onclick="go('outcomes');$('outDrug').value=${esc(JSON.stringify(displayName))};outcomes()">Outcome severity →</button>
+        </div>`;
+
+      if(reactionChart)reactionChart.destroy();
+      reactionChart=new Chart($('reactChart'),{type:'bar',data:{labels:top10.map(r=>r.term),datasets:[{data:top10.map(r=>r.count),backgroundColor:PAL[0],borderRadius:4}]},
+        options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
+      if(sexChart)sexChart.destroy();
+      sexChart=new Chart($('sexChart'),{type:'bar',data:{labels:sexData.map(s=>s.label),datasets:[{data:sexData.map(s=>s.count),backgroundColor:['#2563eb','#db2777','#94a3b8'],borderRadius:4}]},
+        options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw.toLocaleString()} reports`}}},scales:{x:{beginAtZero:true,grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false},ticks:{autoSkip:false}}}}});
+      state.drug={loaded:true,name:n};
+      if(silent)flashUpdated('drugOut');
+    }catch(e){
+      if(silent)console.warn('auto-refresh (drug) failed:',e.message);
+      else $('drugOut').innerHTML=errHTML(e);
+    }
+  },silent);
+}
+function exportDrugCSV(name,rx){csvDownload('pharmasafe_'+name.replace(/\W+/g,'_')+'_reactions.csv',[['reaction_term','report_count'],...rx.map(r=>[r.term,r.count])]);}
+function useSignal(d,r){$('sigDrug').value=d;$('sigRx').value=r;go('signal');signal()}
+
+/* ---------- reaction / MedDRA PT search (mirror of drug analysis, reversed) ---------- */
+let rxDrugChart;
+async function reactionSearch(silent){
+  await withBtn('rxBtn',async()=>{
+    const n=silent?state.rxsearch.name:$('rxName').value.trim();
+    if(!n)return needInput('rxOut','Enter a reaction, symptom, or MedDRA PT to analyze.');
+    if(!silent)$('rxOut').innerHTML=skeleton(5);
+    try{
+      const res=await resolveReactionName(n);
+      const [reports,x,seriousCount]=await Promise.all([
+        Promise.resolve(res.count),
+        fda({search:res.query,count:'patient.drug.medicinalproduct.exact'}),
+        total(res.query+' AND serious:1')
+      ]);
+      const drugs=mergeTermCounts((x.results||[]).map(a=>({term:a.term,count:a.count}))).slice(0,30);
+      const top10=drugs.slice(0,10);
+      const displayName=res.wildcard?n:res.name;
+      window.__lastReactionExport={name:displayName,drugs};
+      const seriousPct=reports?(seriousCount/reports*100):0;
+      const rows=drugs.map(d=>`<tr><td>${esc(d.term)}</td><td>${d.count.toLocaleString()}</td><td><button class="btn gray" style="padding:6px 11px;font-size:11.5px" onclick="useSignal(${esc(JSON.stringify(d.term))},${esc(JSON.stringify(displayName))})">Screen this pair</button></td></tr>`).join('');
+
+      $('rxOut').innerHTML=`
+        ${matchNoteHtml(res,n)}
+        <div class="chips">
+          <span class="chip"><b>${reports.toLocaleString()}</b>&nbsp;total reports</span>
+          <span class="chip"><b>${drugs.length}</b>&nbsp;distinct drugs (top 30 shown)</span>
+          <span class="chip"><b>${seriousPct.toFixed(1)}%</b>&nbsp;flagged serious</span>
+        </div>
+        <h4>Top implicated drugs</h4>
+        <canvas id="rxDrugChart" height="${Math.max(180,top10.length*28)}"></canvas>
+        <h4>All matched drugs</h4>
+        <table><tr><th>Drug (medicinal product)</th><th>Reports</th><th></th></tr>${rows||'<tr><td colspan=3>No drug data found.</td></tr>'}</table>
+        <p class="note">Drug counts are report counts returned by openFDA for this reaction term — not incidence rates, and not adjusted for how often each drug is prescribed.</p>
+        ${methodPanel([
+          ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Query',esc(res.query)],
+          ['Counts',`${reports.toLocaleString()} total reports · ${drugs.length} distinct drug rows after merge · ${seriousCount.toLocaleString()} flagged serious`],
+          ['Limitations',FAERS_LIMITATIONS_HTML]
+        ])}
+        <div class="actions">
+          <button class="btn ghost" type="button" onclick='exportReactionCSV(${esc(JSON.stringify(displayName))},${esc(JSON.stringify(drugs))})'>Export CSV</button>
+          ${exportButton('Export PDF','exportReactionPDF')}
+          <button class="btn ghost" type="button" onclick="go('drug');$('drugName').value=${esc(JSON.stringify(top10[0]?.term||''))};drugSearch()" ${top10.length?'':'disabled'}>Analyze top drug →</button>
+        </div>`;
+
+      if(rxDrugChart)rxDrugChart.destroy();
+      rxDrugChart=new Chart($('rxDrugChart'),{type:'bar',data:{labels:top10.map(d=>d.term),datasets:[{data:top10.map(d=>d.count),backgroundColor:PAL[1],borderRadius:4}]},
+        options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
+      state.rxsearch={loaded:true,name:n};
+      if(silent)flashUpdated('rxOut');
+    }catch(e){
+      if(silent)console.warn('auto-refresh (rxsearch) failed:',e.message);
+      else $('rxOut').innerHTML=errHTML(e);
+    }
+  },silent);
+}
+function exportReactionCSV(name,drugs){csvDownload('pharmasafe_'+name.replace(/\W+/g,'_')+'_drugs.csv',[['drug','report_count'],...drugs.map(d=>[d.term,d.count])]);}
+
+/* ---------- compare ---------- */
+let cmpChartA,cmpChartB,cmpTotalsChart;
+async function compareDrugs(silent){
+  await withBtn('cmpBtn',async()=>{
+    const a=silent?state.compare.a:$('cmpA').value.trim(), b=silent?state.compare.b:$('cmpB').value.trim();
+    if(!a||!b)return needInput('cmpOut','Enter both drug names to compare.');
+    if(!silent)$('cmpOut').innerHTML=skeleton(5);
+    try{
+      const [resA,resB]=await Promise.all([resolveDrugName(a),resolveDrugName(b)]);
+      const [xA,xB]=await Promise.all([
+        fda({search:resA.query,count:'patient.reaction.reactionmeddrapt.exact'}),
+        fda({search:resB.query,count:'patient.reaction.reactionmeddrapt.exact'})
+      ]);
+      const totA=resA.count, totB=resB.count;
+      const nameA=resA.wildcard?a:resA.name, nameB=resB.wildcard?b:resB.name;
+      const topA=mergeTermCounts(xA.results||[]).slice(0,6), topB=mergeTermCounts(xB.results||[]).slice(0,6);
+      const compareRows=[...new Set([...topA.map(r=>r.term),...topB.map(r=>r.term)])].map(term=>[term,topA.find(r=>r.term===term)?.count||0,topB.find(r=>r.term===term)?.count||0]);
+      lastCompareExport={nameA,nameB,totA,totB,rows:compareRows};
+      $('cmpOut').innerHTML=`
+        ${matchNoteHtml(resA,a,'cmpA')}${matchNoteHtml(resB,b,'cmpB')}
+        <h4>Total reports</h4>
+        <canvas id="cmpTotals" height="100"></canvas>
+        <div class="row2" style="margin-top:22px">
+          <div><h4>${esc(nameA)} — top reactions</h4><canvas id="cmpChartA" height="180"></canvas></div>
+          <div><h4>${esc(nameB)} — top reactions</h4><canvas id="cmpChartB" height="180"></canvas></div>
+        </div>
+        <p class="note" style="margin-top:16px">Comparing raw report counts only — differences in overall prescribing volume between drugs are not controlled for, so a higher count does not by itself imply a higher rate.</p>
+        ${methodPanel([
+          ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Query',`A: <code>${esc(resA.query)}</code> · B: <code>${esc(resB.query)}</code>`],
+          ['Counts',`${esc(nameA)}: ${totA.toLocaleString()} reports · ${esc(nameB)}: ${totB.toLocaleString()} reports`],
+          ['Limitations',FAERS_LIMITATIONS_HTML]
+        ])}
+        <div class="actions">${exportButton('Export CSV','exportCompareCSV')} ${exportButton('Export PDF','exportComparePDF')}</div>`;
+      if(cmpTotalsChart)cmpTotalsChart.destroy();
+      cmpTotalsChart=new Chart($('cmpTotals'),{type:'bar',data:{labels:[nameA,nameB],datasets:[{data:[totA,totB],backgroundColor:[PAL[0],PAL[1]],borderRadius:4}]},
+        options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false},ticks:{autoSkip:false}}}}});
+      if(cmpChartA)cmpChartA.destroy();
+      cmpChartA=new Chart($('cmpChartA'),{type:'bar',data:{labels:topA.map(r=>r.term),datasets:[{data:topA.map(r=>r.count),backgroundColor:PAL[0],borderRadius:4}]},
+        options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
+      if(cmpChartB)cmpChartB.destroy();
+      cmpChartB=new Chart($('cmpChartB'),{type:'bar',data:{labels:topB.map(r=>r.term),datasets:[{data:topB.map(r=>r.count),backgroundColor:PAL[1],borderRadius:4}]},
+        options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
+      state.compare={loaded:true,a,b};
+      if(silent)flashUpdated('cmpOut');
+    }catch(e){
+      if(silent)console.warn('auto-refresh (compare) failed:',e.message);
+      else $('cmpOut').innerHTML=errHTML(e);
+    }
+  },silent);
+}
+
+/* ---------- outcome severity ---------- */
+let outChart;
+async function outcomes(silent){
+  await withBtn('outBtn',async()=>{
+    const n=silent?state.outcomes.name:$('outDrug').value.trim();
+    if(!n)return needInput('outOut','Enter a drug name to analyze.');
+    if(!silent)$('outOut').innerHTML=skeleton(5);
+    try{
+      const res=await resolveDrugName(n);
+      const displayName=res.wildcard?n:res.name;
+      const fields=[['seriousnessdeath','Death'],['seriousnesshospitalization','Hospitalization'],['seriousnesslifethreatening','Life-threatening'],['seriousnessdisabling','Disabling'],['seriousnessother','Other serious']];
+      const totReports=res.count;
+      const counts=await Promise.all(fields.map(([f])=>total(res.query+' AND '+f+':1')));
+      const data=fields.map(([f,label],i)=>({label,count:counts[i],pct:totReports?counts[i]/totReports*100:0}));
+      lastOutcomeExport={name:displayName,total:totReports,data};
+      $('outOut').innerHTML=`
+        ${matchNoteHtml(res,n)}
+        <div class="chips"><span class="chip"><b>${totReports.toLocaleString()}</b>&nbsp;total reports for ${esc(displayName)}</span></div>
+        <canvas id="outChart" height="200"></canvas>
+        <table style="margin-top:16px"><tr><th>Outcome</th><th>Reports</th><th>% of total</th></tr>
+          ${data.map(d=>`<tr><td>${esc(d.label)}</td><td>${d.count.toLocaleString()}</td><td>${d.pct.toFixed(1)}%</td></tr>`).join('')}
+        </table>
+        <p class="note" style="margin-top:14px">Outcome flags are self-reported and not mutually exclusive — one report can carry several serious-outcome flags at once, so percentages don't sum to 100%.</p>
+        ${methodPanel([
+          ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Query',esc(res.query)],
+          ['Counts',data.map(d=>`${d.label}: ${d.count.toLocaleString()}`).join(' · ')],
+          ['Limitations',FAERS_LIMITATIONS_HTML]
+        ])}
+        <div class="actions">${exportButton('Export CSV','exportOutcomesCSV')} ${exportButton('Export PDF','exportOutcomesPDF')}</div>`;
+      if(outChart)outChart.destroy();
+      outChart=new Chart($('outChart'),{type:'bar',data:{labels:data.map(d=>d.label),datasets:[{data:data.map(d=>d.count),backgroundColor:[PAL[6],PAL[3],PAL[1],PAL[5],PAL[7]],borderRadius:4}]},
+        options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
+      state.outcomes={loaded:true,name:n};
+      if(silent)flashUpdated('outOut');
+    }catch(e){
+      if(silent)console.warn('auto-refresh (outcomes) failed:',e.message);
+      else $('outOut').innerHTML=errHTML(e);
+    }
+  },silent);
+}
+
+/* ---------- signal detection + forest plot ---------- */
+function forestPlotSVG(r,lo,hi,flag){
+  const w=560,h=120,padL=52,padR=24,top=26;
+  const dmin=Math.min(0.2, lo*0.7, 1), dmax=Math.max(6, hi*1.25, 1);
+  const lx=v=>{const lv=Math.log10(Math.max(v,0.01));const lmin=Math.log10(dmin),lmax=Math.log10(dmax);return padL+(lv-lmin)/(lmax-lmin)*(w-padL-padR);};
+  const ticks=[0.25,0.5,1,2,4,8,16].filter(t=>t>=dmin&&t<=dmax);
+  const x1=lx(lo),x2=lx(hi),xr=lx(r),xref=lx(1);
+  const color=flag?'var(--signal)':'var(--accent)';
+  return `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+    <line class="ref" x1="${xref}" y1="14" x2="${xref}" y2="${h-24}" />
+    <text class="axis-lbl" x="${xref}" y="10" text-anchor="middle">1.0 (no assoc.)</text>
+    ${ticks.map(t=>`<text class="axis-lbl" x="${lx(t)}" y="${h-6}" text-anchor="middle">${t}</text>`).join('')}
+    <line class="whisker" x1="${x1}" y1="${top+34}" x2="${x2}" y2="${top+34}"/>
+    <line class="cap" x1="${x1}" y1="${top+28}" x2="${x1}" y2="${top+40}"/>
+    <line class="cap" x1="${x2}" y1="${top+28}" x2="${x2}" y2="${top+40}"/>
+    <circle cx="${xr}" cy="${top+34}" r="6" fill="${color}"/>
+  </svg>`;
+}
+let lastSignalCalc=null;
+async function signal(silent){
+  await withBtn('sigBtn',async()=>{
+    const drug=silent?state.signal.drug:$('sigDrug').value.trim(), rx=silent?state.signal.rx:$('sigRx').value.trim();
+    if(!drug||!rx)return needInput('sigOut','Enter both a drug and a reaction term.');
+    if(!silent)$('sigOut').innerHTML=skeleton(4);
+    try{
+      const res=await resolveDrugName(drug);
+      const displayDrug=res.wildcard?drug:res.name;
+      const [alln,dn,rn,a]=await Promise.all([total(),Promise.resolve(res.count),total(rq(rx)),total(res.query+' AND '+rq(rx))]);
+      const b2=Math.max(dn-a,0), c=Math.max(rn-a,0), d=Math.max(alln-a-b2-c,0);
+      const [r,lo,hi]=ci(a,b2,c,d), p=prr(a,b2,c,d);
+      const flag=(a>=3 && r>2 && lo>1);
+      const badge=flag?'<span class="badge red">⬤ Potential statistical signal</span>':'<span class="badge">⬤ Not flagged by research screen</span>';
+      $('sigOut').innerHTML=`<div class="card" style="margin-top:18px">
+        ${matchNoteHtml(res,drug)}
+        <h3>${esc(displayDrug)} → ${esc(rx)}</h3>
+        ${badge}
+        <div class="forest">${forestPlotSVG(r,lo,hi,flag)}</div>
+        <div class="forest-legend"><span><i style="background:${flag?'var(--signal)':'var(--accent)'}"></i>Point estimate (ROR)</span><span>Whiskers = 95% confidence interval</span><span>Dashed line = ROR of 1 (no association)</span></div>
+        <h4>Contingency table</h4>
+        <table><tr><th>Cell</th><th>Reports</th></tr>
+          <tr><td>a — drug + reaction</td><td>${a}</td></tr>
+          <tr><td>b — drug + other reactions</td><td>${b2}</td></tr>
+          <tr><td>c — other drugs + reaction</td><td>${c}</td></tr>
+          <tr><td>d — other drugs + other reactions</td><td>${d}</td></tr>
+        </table>
+        <div class="chips" style="margin-top:16px">
+          <button class="chip calc" onclick="openCalcModal('ror')">ROR&nbsp;<b>${r.toFixed(2)}</b>&nbsp;(${lo.toFixed(2)}–${hi.toFixed(2)})<span class="chevron">▸</span></button>
+          <button class="chip calc" onclick="openCalcModal('prr')">PRR&nbsp;<b>${p.toFixed(2)}</b><span class="chevron">▸</span></button>
+        </div>
+        <p class="note" style="margin-top:4px;font-size:11.5px">Tap ROR or PRR above to see the exact calculation.</p>
+        <p class="note" style="margin-top:10px"><b>Research screen:</b> a ≥ 3, ROR &gt; 2 and lower 95% CI &gt; 1. This is a project-defined screening rule, not an FDA regulatory threshold. A disproportionality signal is not proof of causality.</p>
+        ${methodPanel([
+          ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Query',`Drug only: <code>${esc(res.query)}</code> · Reaction only: <code>${esc(rq(rx))}</code> · Both: <code>${esc(res.query+' AND '+rq(rx))}</code>`],
+          ['Counts',`a=${a} · b=${b2} · c=${c} · d=${d}`],
+          ['Limitations',FAERS_LIMITATIONS_HTML]
+        ])}
+        <div class="actions">${exportButton('Export CSV','exportSignalCSV')} ${exportButton('Export PDF','exportSignalPDF')}</div>
+        <button class="btn gray" id="labelBtn" onclick="label(${esc(JSON.stringify(displayDrug))})">Check FDA label evidence</button>
+        <div id="labelOut"></div>
+      </div>`;
+      lastSignalCalc={drug:displayDrug,rx,a,b:b2,c,d,r,lo,hi,p,flag};
+      lastSignalExport=lastSignalCalc;
+      state.signal={loaded:true,drug,rx};
+      if(silent)flashUpdated('sigOut');
+    }catch(e){
+      if(silent)console.warn('auto-refresh (signal) failed:',e.message);
+      else $('sigOut').innerHTML=errHTML(e);
+    }
+  },silent);
+}
+/* Common INN/BAN (international) → USAN (US-label) name differences.
+   FDA labels use the US name, so a raw international-name search often
+   returns nothing even though a matching label genuinely exists. */
+const NAME_ALIASES={
+  paracetamol:'acetaminophen', salbutamol:'albuterol', adrenaline:'epinephrine',
+  noradrenaline:'norepinephrine', frusemide:'furosemide', glibenclamide:'glyburide',
+  amitriptylin:'amitriptyline', diclofenac:'diclofenac', isoprenaline:'isoproterenol',
+  lignocaine:'lidocaine', pethidine:'meperidine', trimethoprim:'trimethoprim'
+};
+async function labelLookup(name){
+  const candidates=[name];
+  const lower=name.toLowerCase().trim();
+  if(NAME_ALIASES[lower])candidates.push(NAME_ALIASES[lower]);
+  drugSynonyms(name).forEach(s=>{if(!candidates.includes(s))candidates.push(s);});
+  const fields=['openfda.generic_name','openfda.substance_name','openfda.brand_name'];
+  for(const cand of candidates){
+    for(const field of fields){
+      const x=await fda({search:field+':'+q(cand),limit:1},LABEL_BASE);
+      if((x.results||[]).length)return {results:x.results,matchedOn:cand,field};
+    }
+  }
+  return {results:[],matchedOn:null,field:null};
+}
+async function label(d){
+  const btn=$('labelBtn');btn.disabled=true;btn.textContent='Working…';
+  try{
+    const {results,matchedOn,field}=await labelLookup(d);
+    if(!results.length){
+      const lower=d.toLowerCase().trim();
+      const hint=NAME_ALIASES[lower]?'':' If this is an international (INN) drug name, try the US name — e.g. "paracetamol" is labeled as "acetaminophen" in FDA data.';
+      $('labelOut').innerHTML=`<p class="note">No matching FDA label found for "${esc(d)}" across generic name, substance name, or brand name.${hint}</p>`;
+      return;
+    }
+    const z=results[0];const sections={};
+    ['boxed_warning','warnings_and_cautions','adverse_reactions','contraindications'].forEach(k=>{if(z[k]&&z[k].length)sections[k]=z[k];});
+    const SECTION_TITLES={boxed_warning:'Boxed warning',warnings_and_cautions:'Warnings and cautions',adverse_reactions:'Adverse reactions',contraindications:'Contraindications'};
+    const matchNote=matchedOn.toLowerCase()!==d.toLowerCase().trim()?`<p class="note">Matched via <b>${esc(matchedOn)}</b> (searched ${esc(field)}) — FDA labels use US drug naming, which can differ from the name you entered.</p>`:'';
+    const sectionsHtml=Object.entries(sections).map(([k,arr])=>`<h4>${esc(SECTION_TITLES[k]||k)}</h4><p class="note">${arr.map(esc).join('</p><p class="note">')}</p>`).join('');
+    $('labelOut').innerHTML=matchNote+(Object.keys(sections).length?`<div style="margin-top:10px">${sectionsHtml}</div>`:'<p class="note">Label found, but none of the tracked sections (boxed warning, warnings, adverse reactions, contraindications) were present in this record.</p>');
+  }catch(e){$('labelOut').innerHTML=errHTML(e);}
+  finally{btn.disabled=false;btn.textContent='Check FDA label evidence';}
+}
+
+/* ---------- ROR/PRR calculation modal ---------- */
+/* Adaptive-precision formatter: fixed-decimal formatting silently rounds tiny
+   fractions (common here, since the "background" cell is often in the tens
+   of millions) down to a misleading "0.0000000". This shows real significant
+   figures always, switching to ×10ⁿ notation only when a value is genuinely
+   too small/large for plain decimal to stay accurate and readable. */
+function fmtSig(x,sig){
+  sig=sig||6;
+  if(!isFinite(x))return String(x);
+  if(x===0)return '0';
+  const abs=Math.abs(x);
+  if(abs<1e-6||abs>=1e15){
+    const s=x.toExponential(Math.max(0,sig-1));
+    const [mant,exp]=s.split('e');
+    const sup={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','+':''};
+    return `${mant}×10${exp.split('').map(ch=>sup[ch]!==undefined?sup[ch]:ch).join('')}`;
+  }
+  return Number(x.toPrecision(sig)).toLocaleString('en-US',{maximumFractionDigits:20});
+}
+function openCalcModal(type){
+  if(!lastSignalCalc)return;
+  const c=lastSignalCalc;
+  const A=c.a+0.5, B=c.b+0.5, C=c.c+0.5, D=c.d+0.5; // Haldane–Anscombe continuity correction
+  const fA=A.toLocaleString('en-US'), fB=B.toLocaleString('en-US'), fC=C.toLocaleString('en-US'), fD=D.toLocaleString('en-US');
+  let html='';
+  if(type==='ror'){
+    const se=Math.sqrt(1/A+1/B+1/C+1/D);
+    html=`
+      <div class="calc-eyebrow">Reporting Odds Ratio</div>
+      <div class="calc-title">${esc(c.drug)} → ${esc(c.rx)}</div>
+
+      <div class="calc-step">
+        <div class="lbl">1 · Continuity correction</div>
+        <div class="expr">Each cell gets <b>+0.5</b> so the ratio is defined even when a count is zero (Haldane–Anscombe correction):<br>
+        a=${c.a}<span class="eq">→</span>${fA} &nbsp;·&nbsp; b=${c.b.toLocaleString()}<span class="eq">→</span>${fB} &nbsp;·&nbsp; c=${c.c.toLocaleString()}<span class="eq">→</span>${fC} &nbsp;·&nbsp; d=${c.d.toLocaleString()}<span class="eq">→</span>${fD}</div>
+      </div>
+
+      <div class="calc-step">
+        <div class="lbl">2 · Odds ratio</div>
+        <div class="expr">ROR <span class="eq">=</span> (a×d) / (b×c)<br>
+        <span class="eq">=</span> (${fA} × ${fD}) / (${fB} × ${fC})<br>
+        <span class="eq">=</span> ${fmtSig(A*D,10)} / ${fmtSig(B*C,10)}<br>
+        <span class="eq">=</span> <b>${fmtSig(c.r,8)}</b></div>
+      </div>
+
+      <div class="calc-step">
+        <div class="lbl">3 · Standard error (log scale)</div>
+        <div class="expr">SE <span class="eq">=</span> √(1/a + 1/b + 1/c + 1/d)<br>
+        <span class="eq">=</span> √(${fmtSig(1/A)} + ${fmtSig(1/B)} + ${fmtSig(1/C)} + ${fmtSig(1/D)})<br>
+        <span class="eq">=</span> <b>${fmtSig(se,8)}</b></div>
+      </div>
+
+      <div class="calc-step">
+        <div class="lbl">4 · 95% confidence interval</div>
+        <div class="expr">Lower <span class="eq">=</span> exp(ln(${fmtSig(c.r)}) − 1.96×${fmtSig(se)}) <span class="eq">=</span> <b>${fmtSig(c.lo,8)}</b><br>
+        Upper <span class="eq">=</span> exp(ln(${fmtSig(c.r)}) + 1.96×${fmtSig(se)}) <span class="eq">=</span> <b>${fmtSig(c.hi,8)}</b></div>
+      </div>
+
+      <div class="calc-result">
+        <div class="num">${c.r.toFixed(2)}</div>
+        <div class="lbl2">ROR, 95% CI ${c.lo.toFixed(2)}–${c.hi.toFixed(2)}<br><span style="font-family:var(--mono);font-size:11px">exact: ROR=${fmtSig(c.r,8)} · CI ${fmtSig(c.lo,8)}–${fmtSig(c.hi,8)}</span></div>
+      </div>
+
+      <ul class="readpoints">
+        <li><span class="ic info">i</span><span><b>What it means:</b> reports pairing ${esc(c.drug)} with ${esc(c.rx)} are ${c.r>=1?`${fmtSig(c.r,3)}× more`:`${fmtSig(1/c.r,3)}× less`} common, relative to how often that reaction shows up with every other drug in FAERS.</span></li>
+        <li><span class="ic ${c.lo>1?'warn':'ok'}">${c.lo>1?'!':'✓'}</span><span><b>CI crosses 1?</b> ${c.lo>1?'No — the entire interval sits above 1, so chance alone is a less likely explanation.':'Yes — the interval includes 1, so this could plausibly be no real association at all.'}</span></li>
+        <li><span class="ic ${c.a>=3?'ok':'warn'}">${c.a>=3?'✓':'!'}</span><span><b>Report volume (a=${c.a}):</b> ${c.a>=3?'meets the minimum count this screen requires to be interpretable.':'below the minimum of 3 — with this few reports, the ratio can swing wildly and should not be trusted numerically, even though it is shown above.'}</span></li>
+      </ul>`;
+  }else{
+    const pA=A/(A+B), pC=C/(C+D);
+    html=`
+      <div class="calc-eyebrow">Proportional Reporting Ratio</div>
+      <div class="calc-title">${esc(c.drug)} → ${esc(c.rx)}</div>
+
+      <div class="calc-step">
+        <div class="lbl">1 · Continuity correction</div>
+        <div class="expr">Same +0.5 correction as ROR, applied to every cell:<br>
+        a=${c.a}<span class="eq">→</span>${fA} &nbsp;·&nbsp; b=${c.b.toLocaleString()}<span class="eq">→</span>${fB} &nbsp;·&nbsp; c=${c.c.toLocaleString()}<span class="eq">→</span>${fC} &nbsp;·&nbsp; d=${c.d.toLocaleString()}<span class="eq">→</span>${fD}</div>
+      </div>
+
+      <div class="calc-step">
+        <div class="lbl">2 · Proportion within this drug</div>
+        <div class="expr">a / (a+b) <span class="eq">=</span> ${fA} / ${fmtSig(A+B,10)} <span class="eq">=</span> <b>${fmtSig(pA,8)}</b></div>
+        <div class="expr" style="margin-top:6px;color:var(--muted);font-size:12.5px">Share of ${esc(c.drug)}'s reports that mention ${esc(c.rx)}.</div>
+      </div>
+
+      <div class="calc-step">
+        <div class="lbl">3 · Proportion in all other drugs</div>
+        <div class="expr">c / (c+d) <span class="eq">=</span> ${fC} / ${fmtSig(C+D,10)} <span class="eq">=</span> <b>${fmtSig(pC,8)}</b></div>
+        <div class="expr" style="margin-top:6px;color:var(--muted);font-size:12.5px">Share of every other drug's reports that mention ${esc(c.rx)} — the background rate.</div>
+      </div>
+
+      <div class="calc-step">
+        <div class="lbl">4 · Ratio</div>
+        <div class="expr">PRR <span class="eq">=</span> [a/(a+b)] / [c/(c+d)]<br>
+        <span class="eq">=</span> ${fmtSig(pA,8)} / ${fmtSig(pC,8)}<br>
+        <span class="eq">=</span> <b>${fmtSig(c.p,8)}</b></div>
+      </div>
+
+      <div class="calc-result">
+        <div class="num">${c.p.toFixed(2)}</div>
+        <div class="lbl2">PRR<br><span style="font-family:var(--mono);font-size:11px">exact: PRR=${fmtSig(c.p,8)}</span></div>
+      </div>
+
+      <ul class="readpoints">
+        <li><span class="ic info">i</span><span><b>What it means:</b> ${esc(c.rx)} shows up in ${esc(c.drug)}'s reports at ${fmtSig(c.p,3)}× the rate it shows up in reports for every other drug combined.</span></li>
+        <li><span class="ic info">i</span><span><b>vs. ROR:</b> PRR and ROR use different math but tend to agree closely for rare reactions — that's why yours came out nearly identical here.</span></li>
+        <li><span class="ic ${c.a>=3?'ok':'warn'}">${c.a>=3?'✓':'!'}</span><span><b>Traditional PRR threshold</b> (from UK MHRA practice) is often PRR≥2, χ²≥4, a≥3 — similar spirit to this screen's rule, but not identical.</span></li>
+      </ul>`;
+  }
+  html+=`
+    <h4 style="margin-top:22px">This app's research screen</h4>
+    <div class="screenrule">
+      <div class="rule"><span>Minimum reports (a ≥ 3)</span><span class="cond">a = ${c.a}</span><span class="${c.a>=3?'pass':'fail'}">${c.a>=3?'PASS':'FAIL'}</span></div>
+      <div class="rule"><span>ROR above 2</span><span class="cond">ROR = ${c.r.toFixed(2)}</span><span class="${c.r>2?'pass':'fail'}">${c.r>2?'PASS':'FAIL'}</span></div>
+      <div class="rule"><span>Lower 95% CI above 1</span><span class="cond">lower = ${c.lo.toFixed(2)}</span><span class="${c.lo>1?'pass':'fail'}">${c.lo>1?'PASS':'FAIL'}</span></div>
+    </div>
+    <p class="note">All three conditions must pass to be flagged as a potential signal. This is a project-defined screening rule modeled on common pharmacovigilance practice — <b>not</b> an official FDA, EMA, or WHO-UMC threshold, and passing it is not proof of causality. It only means the pattern is statistically worth a closer look.</p>`;
+  $('calcModalBody').innerHTML=html;
+  const m=$('calcModal');
+  m.style.display='flex';
+  requestAnimationFrame(()=>m.classList.add('show'));
+}
+function closeCalcModal(){
+  const m=$('calcModal');
+  m.classList.remove('show');
+  setTimeout(()=>{ if(!m.classList.contains('show'))m.style.display='none'; },260);
+}
+
+/* ---------- feedback ----------
+   Feedback is sent silently from the app through FormSubmit to pharmasafe.info@gmail.com.
+   No Gmail/Outlook compose window is opened and no external mail website is launched.
+
+   Star ratings are stored separately in Firestore (same Firebase project
+   as login) purely as {rating, timestamp} — never the written feedback
+   text — so the public rating average can be computed without exposing
+   anyone's comments. Requires Firestore enabled once in the Firebase
+   console (Build → Firestore Database → Create database) with rules
+   allowing create+read on a "ratings" collection. If Firestore isn't
+   enabled yet, the summary badge simply stays hidden — nothing breaks. */
+const FEEDBACK_ENDPOINT="https://formsubmit.co/ajax/pharmasafe.info@gmail.com";
+const feedbackReady=true;
+const FEEDBACK_EMAIL="pharmasafe.info@gmail.com";
+let feedbackRating=0;
+let ratingsDb=null, ratingsDbTried=false;
+/* Lazily resolved on first real use (a submit, or the initApp() call at the
+   very end of this script) — never at this point in the file, since
+   firebaseReady isn't declared yet this early and referencing it now would
+   throw, not fail gracefully. */
+function getRatingsDb(){
+  if(ratingsDbTried)return ratingsDb;
+  ratingsDbTried=true;
+  try{
+    if(typeof firebaseReady!=='undefined' && firebaseReady)ratingsDb=firebase.firestore();
+  }catch(e){ ratingsDb=null; }
+  return ratingsDb;
+}
+
+function setFeedbackRating(v){
+  feedbackRating=v;
+  document.querySelectorAll('#starRow .star').forEach(s=>{
+    s.classList.toggle('filled', Number(s.dataset.v)<=v);
+  });
+  $('feedbackStatus').textContent='';
+}
+function openFeedbackModal(){
+  const m=$('feedbackModal');
+  m.style.display='flex';
+  requestAnimationFrame(()=>m.classList.add('show'));
+}
+function closeFeedbackModal(){
+  const m=$('feedbackModal');
+  m.classList.remove('show');
+  setTimeout(()=>{ if(!m.classList.contains('show'))m.style.display='none'; },260);
+}
+/* Opens the best available Gmail compose experience for the device.
+   iPhone/iPad: Gmail's iOS compose URL scheme.
+   Android: an Android intent targeted at the Gmail package, with a
+   standard mailto fallback if Chrome/Android refuses the intent.
+   Desktop/laptop: mailto, which opens the user's configured mail app.
+   A website cannot force a Gmail app on every desktop/browser. */
+function openGmailCompose(){
+  /* Disabled: feedback is sent silently in-app via FormSubmit. */
+}
+
+async function recordRatingOnly(rating){
+  const db=getRatingsDb();
+  if(!db) throw new Error('Firestore is not initialized. Check Firebase configuration.');
+  const numericRating=Number(rating);
+  if(!Number.isInteger(numericRating) || numericRating<1 || numericRating>5){
+    throw new Error('Invalid rating value.');
+  }
+  try{
+    const ref=db.collection('ratings').doc();
+    await ref.set({
+      rating:numericRating,
+      ts:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    return ref.id;
+  }catch(e){
+    console.error('PharmaSafe Firestore rating write failed:',e);
+    throw e;
+  }
+}
+async function loadRatingSummary(){
+  const db=getRatingsDb();
+  if(!db)return;
+  try{
+    const snap=await db.collection('ratings').get();
+    let sum=0,count=0;
+    snap.forEach(doc=>{
+      const data=doc.data()||{};
+      const r=Number(data.rating);
+      if(Number.isFinite(r) && r>=1 && r<=5){sum+=r;count++;}
+    });
+    const el=$('ratingSummary');
+    if(!el)return;
+    if(count===0){el.style.visibility='hidden';return;}
+    const avg=(sum/count).toFixed(1);
+    el.innerHTML=`<span class="rs-star">★</span> ${avg} · ${count} rating${count===1?'':'s'}`;
+    el.style.visibility='visible';
+  }catch(e){
+    console.error('PharmaSafe Firestore rating read failed:',e);
+  }
+}
+function showFirestoreError(statusEl,e){
+  const code=e && e.code ? String(e.code) : '';
+  statusEl.style.color='var(--signal)';
+  if(code.includes('permission-denied')){
+    statusEl.textContent='Rating could not be saved because Firestore permissions are blocking it. Please check Firebase Firestore Rules.';
+  }else if(code.includes('failed-precondition')){
+    statusEl.textContent='Rating could not be saved because Firestore is not enabled or configured. Please enable Firestore Database in Firebase.';
+  }else if(code.includes('unavailable')){
+    statusEl.textContent='Rating could not be saved right now. Please check your internet connection and try again.';
+  }else{
+    statusEl.textContent='Rating could not be saved. Please try again.';
+  }
+}
+async function submitFeedback(){
+  const statusEl=$('feedbackStatus');
+  if(!feedbackRating){
+    statusEl.style.color='var(--signal)';
+    statusEl.textContent='Please select a star rating first.';
+    return;
+  }
+  const message=$('feedbackText').value.trim();
+  const btn=$('feedbackSubmitBtn');
+  const ratingToSave=feedbackRating;
+  btn.disabled=true; btn.textContent='Sending…';
+  statusEl.style.color='var(--muted)';
+  statusEl.textContent='Sending your feedback…';
+
+  // Save the rating first; written feedback is then sent through FormSubmit
+  // without opening Gmail or leaving the page.
+  try{
+    await recordRatingOnly(ratingToSave);
+    await loadRatingSummary();
+  }catch(e){
+    showFirestoreError(statusEl,e);
+    btn.disabled=false; btn.textContent='Submit feedback';
+    return;
+  }
+
+  const payload={
+    _subject:`PharmaSafe feedback (${ratingToSave}★)`,
+    _captcha:'false',
+    _template:'table',
+    rating:String(ratingToSave),
+    message:message||'(no written feedback)',
+    page:location.href,
+    user:(typeof currentUser!=='undefined' && currentUser && currentUser.email) ? currentUser.email : 'anonymous'
+  };
+
+  let sent=false;
+  try{
+    const res=await fetch(FEEDBACK_ENDPOINT,{
+      method:'POST',
+      headers:{'Accept':'application/json','Content-Type':'application/json'},
+      body:JSON.stringify(payload),
+      mode:'cors',
+      credentials:'omit',
+      cache:'no-store'
+    });
+    sent=res.ok;
+  }catch(e){
+    console.warn('FormSubmit AJAX unavailable; using hidden-form fallback.',e);
+  }
+
+  if(!sent){
+    // FormSubmit's normal HTML endpoint works even when an AJAX/CORS request
+    // is blocked. The form targets an invisible iframe, so the user stays on
+    // the same page and no mail website or popup is opened.
+    try{
+      const iframe=document.createElement('iframe');
+      iframe.name='pharmasafeFeedbackFrame';
+      iframe.style.cssText='position:absolute;width:0;height:0;border:0;visibility:hidden;';
+      document.body.appendChild(iframe);
+      const form=document.createElement('form');
+      form.method='POST';
+      form.action='https://formsubmit.co/pharmasafe.info@gmail.com';
+      form.target=iframe.name;
+      form.style.display='none';
+      Object.entries(payload).forEach(([k,v])=>{
+        const input=document.createElement('input');
+        input.type='hidden'; input.name=k; input.value=String(v);
+        form.appendChild(input);
+      });
+      document.body.appendChild(form);
+      form.submit();
+      setTimeout(()=>{form.remove();iframe.remove();},8000);
+      sent=true;
+    }catch(e){
+      console.error('PharmaSafe FormSubmit fallback failed:',e);
+    }
+  }
+
+  if(sent){
+    statusEl.style.color='var(--ok)';
+    statusEl.textContent='Thank you — your feedback was sent ✓';
+    setTimeout(()=>{
+      closeFeedbackModal();
+      feedbackRating=0;
+      $('feedbackText').value='';
+      document.querySelectorAll('#starRow .star').forEach(s=>s.classList.remove('filled'));
+      statusEl.textContent='';
+    },1100);
+  }else{
+    statusEl.style.color='var(--signal)';
+    statusEl.textContent='Feedback could not be sent right now. Please try again.';
+  }
+  btn.disabled=false; btn.textContent='Submit feedback';
+}
+
+/* ---------- report viewer ---------- */
+async function caseView(){
+  await withBtn('caseBtn',async()=>{
+    const id=$('caseId').value.trim();
+    if(!id)return needInput('caseOut','Enter a report ID.');
+    $('caseOut').innerHTML=skeleton(4);
+    try{
+      const x=await fda({search:'safetyreportid:'+q(id),limit:1});
+      const results=x.results||[];
+      if(!results.length){$('caseOut').innerHTML='<p class="err">Report not found in openFDA.</p>';return;}
+      const z=results[0], p=z.patient||{};
+      const drugs=(p.drug||[]).map(d=>({name:d.medicinalproduct,role:fmtRole(d.drugcharacterization),indication:d.drugindication}));
+      const reactions=(p.reaction||[]).map(r=>r.reactionmeddrapt).filter(Boolean);
+      const receivedFmt=z.receivedate&&/^\d{8}$/.test(z.receivedate)?`${z.receivedate.slice(0,4)}-${z.receivedate.slice(4,6)}-${z.receivedate.slice(6,8)}`:esc(z.receivedate)||'Not reported';
+      const seriousFmt=z.serious==='1'?'Yes':z.serious==='2'?'No':'Not reported';
+      const drugsRows=drugs.map(d=>`<tr><td>${esc(d.name)||'Unnamed product'}</td><td>${esc(d.role)}</td><td>${esc(d.indication)||'—'}</td></tr>`).join('');
+      lastCaseExport={id:z.safetyreportid,received:receivedFmt,serious:seriousFmt,country:z.occurcountry||'Not reported',age:fmtAge(p.patientonsetage,p.patientonsetageunit),sex:fmtSex(p.patientsex),drugs,reactions};
+      $('caseOut').innerHTML=`<div class="card" style="margin-top:14px">
+        <h3>Report ${esc(z.safetyreportid)}</h3>
+        <div class="chips">
+          <span class="chip">Received&nbsp;<b>${receivedFmt}</b></span>
+          <span class="chip">Serious&nbsp;<b>${seriousFmt}</b></span>
+          <span class="chip">Country&nbsp;<b>${esc(z.occurcountry)||'Not reported'}</b></span>
+          <span class="chip">Age&nbsp;<b>${fmtAge(p.patientonsetage,p.patientonsetageunit)}</b></span>
+          <span class="chip">Sex&nbsp;<b>${fmtSex(p.patientsex)}</b></span>
+        </div>
+        <h4>Drugs reported</h4>
+        <table><tr><th>Product</th><th>Role</th><th>Indication</th></tr>${drugsRows||'<tr><td colspan=3>No drug data found.</td></tr>'}</table>
+        <h4>Reactions reported</h4><p class="note">${reactions.map(esc).join(', ')||'None reported'}</p>
+        ${methodPanel([
+          ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Query',esc('safetyreportid:'+q(id))],
+          ['Counts','1 report retrieved by exact ID match'],
+          ['Limitations',FAERS_LIMITATIONS_HTML]
+        ])}
+        <div class="actions">${exportButton('Export CSV','exportCaseCSV')} ${exportButton('Export PDF','exportCasePDF')}</div>
+      </div>`;
+    }catch(e){$('caseOut').innerHTML=errHTML(e);}
+  });
+}
+
+/* ---------- trend ---------- */
+let chart;
+async function trend(silent){
+  await withBtn('trendBtn',async()=>{
+    const n=silent?state.trend.name:$('trendDrug').value.trim();
+    if(!n)return needInput('trendMsg','Enter a drug name to load its trend.');
+    if(!silent)$('trendMsg').innerHTML=skeleton(1);
+    try{
+      const res=await resolveDrugName(n);
+      const displayName=res.wildcard?n:res.name;
+      const x=await fda({search:res.query,count:'receivedate'});
+      $('trendMsg').innerHTML=matchNoteHtml(res,n);
+      const raw=(x.results||[]).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+      const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const monthly={};
+      raw.forEach(a=>{
+        const t=String(a.time||'');
+        if(!/^\d{8}$/.test(t))return;
+        const key=t.slice(0,6); // YYYYMM
+        monthly[key]=(monthly[key]||0)+a.count;
+      });
+      const keys=Object.keys(monthly).sort();
+      const labels=keys.map(k=>`${MONTHS[Number(k.slice(4,6))-1]} ${k.slice(0,4)}`);
+      const counts=keys.map(k=>monthly[k]);
+      lastTrendExport={name:displayName,rows:keys.map((k,i)=>[labels[i],counts[i]])};
+      if(chart)chart.destroy();
+      chart=new Chart($('trendChart'),{type:'line',data:{labels,datasets:[{label:'FDA reports for '+displayName+' (by month)',data:counts,borderColor:PAL[0],backgroundColor:PAL[0]+'22',fill:true,tension:.15,pointRadius:0}]},
+        options:{plugins:{tooltip:{callbacks:{title:items=>items[0]?.label||''}}},
+          scales:{x:{type:'category',grid:{display:false},ticks:{maxTicksLimit:12,autoSkip:true}},y:{beginAtZero:true,title:{display:true,text:'Reports'},grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}}}}});
+      $('trendMethod').innerHTML=methodPanel([
+        ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+        ['Query',esc(res.query)],
+        ['Counts',`${keys.length} months of data, ${counts.reduce((s,v)=>s+v,0).toLocaleString()} total reports plotted`],
+        ['Limitations',FAERS_LIMITATIONS_HTML]
+      ])+`<div class="actions">${exportButton('Export CSV','exportTrendCSV')} ${exportButton('Export PDF','exportTrendPDF')}</div>`;
+      state.trend={loaded:true,name:n};
+      if(silent)flashUpdated('trendChart');
+    }catch(e){
+      if(silent){console.warn('auto-refresh (trend) failed:',e.message);return;}
+      if(e.isNetworkBlock){$('trendMsg').innerHTML=errHTML(e);}
+      else{$('trendMsg').innerHTML=`<p class="note" style="color:var(--signal)">${esc(e.message)}</p>`;}
+    }
+  },silent);
+}
+
+/* ---------- leaderboard ---------- */
+async function leaderboard(silent){
+  await withBtn('leadBtn',async()=>{
+    if(!silent)$('leadOut').innerHTML=skeleton(8);
+    try{
+      const [drugsX,rxX]=await Promise.all([
+        fda({count:'patient.drug.medicinalproduct.exact'}),
+        fda({count:'patient.reaction.reactionmeddrapt.exact'})
+      ]);
+      const topDrugs=mergeTermCounts(drugsX.results||[]).slice(0,12);
+      const topRx=mergeTermCounts(rxX.results||[]).slice(0,12);
+      const maxD=Math.max(...topDrugs.map(d=>d.count),1);
+      const maxR=Math.max(...topRx.map(d=>d.count),1);
+      lastLeaderboardExport={drugs:topDrugs,reactions:topRx};
+      const rowsHtml=(items,max)=>items.map((it,i)=>`<div class="leaderrow"><span class="rank">${String(i+1).padStart(2,'0')}</span><span class="name">${esc(it.term)}</span><span class="bar" style="width:${Math.max(6,it.count/max*90)}px"></span><span class="val">${it.count.toLocaleString()}</span></div>`).join('');
+      $('leadOut').innerHTML=`<div class="row2">
+        <div><h4>Top drug terms (openFDA aggregation)</h4>${rowsHtml(topDrugs,maxD)}</div>
+        <div><h4>Top reaction terms (openFDA aggregation)</h4>${rowsHtml(topRx,maxR)}</div>
+      </div>
+      <p class="note" style="margin-top:16px">Unfiltered counts across the entire public FAERS index — reflects report volume, not risk, and is skewed toward widely prescribed, long-marketed drugs.</p>
+      ${methodPanel([
+        ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+        ['Query','<code>count=patient.drug.medicinalproduct.exact</code> and <code>count=patient.reaction.reactionmeddrapt.exact</code> — no filter, entire public index'],
+        ['Counts','Top 12 shown, drawn from openFDA\u2019s top-1,000-by-frequency aggregation computed over the complete dataset'],
+        ['Limitations','<ul class="readpoints" style="margin-top:0"><li><span class="ic info">i</span><span>Counts are bucketed by exact submitted text — the same drug under different spellings/brand names is split across separate rows, so true combined volume can rank lower than shown.</span></li><li><span class="ic info">i</span><span>Reflects report volume, not risk, and is skewed toward widely prescribed, long-marketed drugs.</span></li></ul>']
+      ])}<div class="actions">${exportButton('Export CSV','exportLeaderboardCSV')} ${exportButton('Export PDF','exportLeaderboardPDF')}</div>`;
+      state.leaderboard.loaded=true;
+      if(silent)flashUpdated('leadOut');
+    }catch(e){
+      if(silent)console.warn('auto-refresh (leaderboard) failed:',e.message);
+      else $('leadOut').innerHTML=errHTML(e);
+    }
+  },silent);
+}
+
+/* ---------- recent ---------- */
+async function recent(silent){
+  await withBtn('recentBtn',async()=>{
+    if(!silent)$('recentOut').innerHTML=skeleton(6);
+    try{
+      const x=await fda({limit:20,sort:'receivedate:desc'});
+      const out=(x.results||[]).map(z=>{
+        const p=z.patient||{};
+        return {id:z.safetyreportid,received:z.receivedate,age:p.patientonsetage,ageUnit:p.patientonsetageunit,sex:p.patientsex,
+          drugs:(p.drug||[]).map(d=>d.medicinalproduct).filter(Boolean).slice(0,8),
+          reactions:(p.reaction||[]).map(r=>r.reactionmeddrapt).filter(Boolean).slice(0,8)};
+      });
+      const rows=out.map(r=>{
+        const receivedFmt=r.received&&/^\d{8}$/.test(r.received)?`${r.received.slice(0,4)}-${r.received.slice(4,6)}-${r.received.slice(6,8)}`:esc(r.received)||'—';
+        return `<tr><td>${esc(r.id)}</td><td>${receivedFmt}</td><td>${fmtAge(r.age,r.ageUnit)}</td><td>${fmtSex(r.sex)}</td><td>${esc(r.drugs.join(', '))||'—'}</td><td>${esc(r.reactions.join(', '))||'—'}</td></tr>`;
+      }).join('');
+      $('recentOut').innerHTML=`<div style="overflow-x:auto"><table><tr><th>ID</th><th>Received</th><th>Age</th><th>Sex</th><th>Drugs</th><th>Reactions</th></tr>${rows||'<tr><td colspan=6>No data.</td></tr>'}</table></div>
+        <div class="actions"><button class="btn ghost" onclick='exportRecentCSV(${esc(JSON.stringify(out))})'>Export CSV</button><button class="btn ghost" onclick='exportRecentPDF(${esc(JSON.stringify(out))},this)'>Export PDF</button></div>
+        ${methodPanel([
+          ['Source','FDA openFDA Drug Adverse Event API — data from the FDA Adverse Event Reporting System (FAERS), <code>/drug/event.json</code>'],
+          ['Query','<code>limit=20&sort=receivedate:desc</code> — no filter, entire public index'],
+          ['Counts','20 most recent reports by receive date'],
+          ['Limitations','<ul class="readpoints" style="margin-top:0"><li><span class="ic info">i</span><span>"Recent" means most recently added to the openFDA index, not most recent real-world event date — openFDA updates quarterly.</span></li><li><span class="ic info">i</span><span>A report existing does not establish that the drug caused the reaction.</span></li></ul>']
+        ])}`;
+      state.recent.loaded=true;
+      if(silent)flashUpdated('recentOut');
+    }catch(e){
+      if(silent)console.warn('auto-refresh (recent) failed:',e.message);
+      else $('recentOut').innerHTML=errHTML(e);
+    }
+  },silent);
+}
+function exportRecentCSV(out){csvDownload('pharmasafe_recent_reports.csv',[['id','received','age','sex','drugs','reactions'],...out.map(r=>[r.id,r.received,fmtAge(r.age,r.ageUnit),fmtSex(r.sex),r.drugs.join('; '),r.reactions.join('; ')])]);}
+async function exportRecentPDF(out,btn){await runPdfExport(btn,()=>pdfDownload('pharmasafe_recent_reports.pdf','PharmaSafe — Recent Reports',['ID','Received','Age','Sex','Drugs','Reactions'],out.map(r=>[r.id,r.received,fmtAge(r.age,r.ageUnit),fmtSex(r.sex),r.drugs.join(', ')||'—',r.reactions.join(', ')||'—']),{columnStyles:{4:{cellWidth:70},5:{cellWidth:70}}}));}
+
+
+/* ---------- universal tool exports ---------- */
+function exportDrugPDF(btn){const x=window.__lastDrugExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_reactions.pdf','PharmaSafe — '+x.name+' reactions',['Reaction term','Report count'],x.rx.map(r=>[r.term,r.count])));}
+function exportReactionPDF(btn){const x=window.__lastReactionExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_drugs.pdf','PharmaSafe — '+x.name+' implicated drugs',['Drug','Report count'],x.drugs.map(d=>[d.term,d.count])));}
+function exportCompareCSV(btn){const x=lastCompareExport;if(!x)return;csvDownload('pharmasafe_compare.csv',[['Metric',x.nameA,x.nameB],['Total reports',x.totA,x.totB],[],['Reaction',x.nameA+' reports',x.nameB+' reports'],...x.rows]);}
+function exportComparePDF(btn){const x=lastCompareExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_compare.pdf','PharmaSafe — Drug Comparison',['Reaction',x.nameA+' reports',x.nameB+' reports'],[['TOTAL REPORTS',x.totA,x.totB],...x.rows]));}
+function exportOutcomesCSV(btn){const x=lastOutcomeExport;if(!x)return;csvDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_outcomes.csv',[['outcome','report_count','percent_of_total'],...x.data.map(d=>[d.label,d.count,d.pct.toFixed(1)+'%'])]);}
+function exportOutcomesPDF(btn){const x=lastOutcomeExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_outcomes.pdf','PharmaSafe — '+x.name+' outcome severity',['Outcome','Reports','% of total'],x.data.map(d=>[d.label,d.count,d.pct.toFixed(1)+'%'])));}
+function exportSignalCSV(btn){const x=lastSignalExport;if(!x)return;csvDownload('pharmasafe_signal.csv',[['drug','reaction','a_drug_reaction','b_drug_other_reactions','c_other_drugs_reaction','d_other_drugs_other_reactions','ROR','ROR_95CI_low','ROR_95CI_high','PRR','flagged'],[x.drug,x.rx,x.a,x.b,x.c,x.d,x.r.toFixed(4),x.lo.toFixed(4),x.hi.toFixed(4),x.p.toFixed(4),x.flag?'Potential statistical signal':'Not flagged']]);}
+function exportSignalPDF(btn){const x=lastSignalExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_signal.pdf','PharmaSafe — Signal Detection',['Metric','Value'],[['Drug',x.drug],['Reaction',x.rx],['a — drug + reaction',x.a],['b — drug + other reactions',x.b],['c — other drugs + reaction',x.c],['d — other drugs + other reactions',x.d],['ROR',x.r.toFixed(4)],['95% CI',x.lo.toFixed(4)+' – '+x.hi.toFixed(4)],['PRR',x.p.toFixed(4)],['Research screen',x.flag?'Potential statistical signal':'Not flagged']]));}
+function exportCaseCSV(btn){const x=lastCaseExport;if(!x)return;csvDownload('pharmasafe_report_'+x.id+'.csv',[['field','value'],['Report ID',x.id],['Received',x.received],['Serious',x.serious],['Country',x.country],['Age',x.age],['Sex',x.sex],[],['Drug','Role','Indication'],...x.drugs.map(d=>[d.name,d.role,d.indication||'—']),[],['Reactions'],...x.reactions.map(r=>[r])]);}
+function exportCasePDF(btn){const x=lastCaseExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_report_'+x.id+'.pdf','PharmaSafe — Report '+x.id,['Field','Value'],[['Received',x.received],['Serious',x.serious],['Country',x.country],['Age',x.age],['Sex',x.sex],['Drugs',x.drugs.map(d=>d.name).join(', ')||'—'],['Reactions',x.reactions.join(', ')||'—']]));}
+function exportTrendCSV(btn){const x=lastTrendExport;if(!x)return;csvDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_trend.csv',[['month','report_count'],...x.rows]);}
+function exportTrendPDF(btn){const x=lastTrendExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_trend.pdf','PharmaSafe — '+x.name+' trend',['Month','Report count'],x.rows));}
+function exportLeaderboardCSV(btn){const x=lastLeaderboardExport;if(!x)return;csvDownload('pharmasafe_leaderboard.csv',[['type','rank','term','report_count'],...x.drugs.map((d,i)=>['Drug',i+1,d.term,d.count]),...x.reactions.map((d,i)=>['Reaction',i+1,d.term,d.count])]);}
+function exportLeaderboardPDF(btn){const x=lastLeaderboardExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_leaderboard.pdf','PharmaSafe — Leaderboard',['Type','Rank','Term','Report count'],[...x.drugs.map((d,i)=>['Drug',i+1,d.term,d.count]),...x.reactions.map((d,i)=>['Reaction',i+1,d.term,d.count]) ]));}
+
+/* ---------- PWA: service worker + install prompts ---------- */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{/* non-fatal: shell caching just won't be available */});
+  });
+  // When a new service worker version takes control (e.g. after a fresh
+  // deploy), the page it's already showing was still built by the old one —
+  // reload once so the app actually reflects the new version right away,
+  // instead of only updating on the *next* manual open.
+  let swRefreshed=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(swRefreshed)return;
+    swRefreshed=true;
+    location.reload();
+  });
+}
+function dismissInstall(id){$(id).classList.remove('show');}
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',(e)=>{
+  e.preventDefault();
+  deferredPrompt=e;
+  const already=window.matchMedia('(display-mode: standalone)').matches;
+  if(!already)$('androidInstall').classList.add('show');
+});
+async function doInstall(){
+  if(!deferredPrompt)return;
+  dismissInstall('androidInstall');
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt=null;
+}
+(function iosPrompt(){
+  const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  const already=window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
+  if(isIOS && !already)$('iosInstall').classList.add('show');
+})();
+
+/* ---------- your own auth, powered by Firebase Authentication ----------
+   This is a real account system you control end-to-end: you create the
+   free Firebase project, Firebase securely stores and verifies passwords
+   (nothing here ever sees or handles raw credentials itself), and every
+   pixel of the login/signup UI above is fully custom, not a Firebase widget.
+
+   SETUP (one-time, ~3 minutes):
+   1. Go to https://console.firebase.google.com → Add project (free tier).
+   2. In the project: Build → Authentication → Get started → enable
+      "Email/Password" as a sign-in method.
+   3. Project settings (gear icon) → General → "Your apps" → Add app → Web.
+      Copy the config object it gives you into FIREBASE_CONFIG below.
+   Until you do this, the app still works fully for anonymous browsing —
+   sign-in will just show a setup notice instead of a form.
+   App Check is initialized below with the production reCAPTCHA Enterprise site key. */
+const FIREBASE_CONFIG={
+  apiKey:"AIzaSyC8kBeQ97xUc7ZOnn_Z3hx6UkzDl2AXOOI",
+  authDomain:"pharmasafe-ac4f6.firebaseapp.com",
+  projectId:"pharmasafe-ac4f6",
+  appId:"1:831408748488:web:b27e8c1b91212c6f2032fd"
+};
+const firebaseReady = FIREBASE_CONFIG.apiKey!=='YOUR_API_KEY' && window.firebase;
+if(firebaseReady){
+  firebase.initializeApp(FIREBASE_CONFIG);
+
+  // Firebase App Check — reCAPTCHA Enterprise.
+  // The site key is public by design; domain verification is enforced by Google Cloud.
+  // Activation (not initializeApp itself) is deferred until just after the
+  // page's first paint — reCAPTCHA Enterprise's own script/network cost is
+  // real and otherwise competes with initial render for bandwidth/CPU.
+  // Nothing about App Check's protection is skipped or weakened by this —
+  // it still activates on every load, just a beat later, well before any
+  // login or Firestore write a user could actually trigger.
+  const RECAPTCHA_ENTERPRISE_SITE_KEY="6Le3H5gtAAAAAFP401ud8f0fuN962yu8fBPzWW7";
+  const activateAppCheck=()=>{
+    if(firebase.appCheck){
+      try{
+        firebase.appCheck().activate(RECAPTCHA_ENTERPRISE_SITE_KEY, true);
+      }catch(e){
+        console.warn('Firebase App Check could not be initialized:', e);
+      }
+    }
+  };
+  if(document.readyState==='complete'){
+    setTimeout(activateAppCheck,0);
+  }else{
+    window.addEventListener('load',()=>setTimeout(activateAppCheck,0),{once:true});
+  }
+}
+
+let currentUser=null;
+
+function switchAuthTab(tab){
+  $('tabLogin').classList.toggle('active',tab==='login');
+  $('tabSignup').classList.toggle('active',tab==='signup');
+  $('loginForm').classList.toggle('active',tab==='login');
+  $('signupForm').classList.toggle('active',tab==='signup');
+  $('loginErr').classList.remove('show');
+  $('signupErr').classList.remove('show');
+}
+
+function authBusy(btnId,busy,label){
+  const b=$(btnId);
+  b.disabled=busy;
+  b.textContent=busy?'Please wait…':label;
+}
+
+function showAuthPrompt(reason){
+  const m=$('authModal');
+  $('authModalSub').textContent=reason==='nudge'
+    ? "You've tried a couple of tools — sign in to save your work, or keep browsing without an account."
+    : 'FAERS / AEMS Analytics — academic prototype';
+  m.style.display='flex';
+  requestAnimationFrame(()=>m.classList.add('show'));
+}
+function hideAuthPrompt(){
+  const m=$('authModal');
+  m.classList.remove('show');
+  setTimeout(()=>{ if(!m.classList.contains('show'))m.style.display='none'; },220);
+}
+
+function friendlyAuthError(err){
+  const code=err&&err.code||'';
+  if(code.includes('email-already-in-use'))return 'An account with this email already exists — try logging in instead.';
+  if(code.includes('weak-password'))return 'Password is too weak — use at least 6 characters.';
+  if(code.includes('invalid-email'))return 'That email address doesn\'t look valid.';
+  if(code.includes('user-not-found')||code.includes('wrong-password')||code.includes('invalid-credential'))return 'Incorrect email or password.';
+  if(code.includes('too-many-requests'))return 'Too many attempts — please wait a moment and try again.';
+  if(code.includes('account-exists-with-different-credential'))return 'An account already exists with this email using a different sign-in method — try Log in with email/password instead.';
+  if(code.includes('popup-closed-by-user')||code.includes('cancelled-popup-request'))return ''; // user backed out, not a real error
+  if(code.includes('network-request-failed'))return 'Network error — please check your connection and try again.';
+  return err&&err.message||'Something went wrong. Please try again.';
+}
+
+function signInWithGoogle(){
+  const errEl=$('googleErr');
+  errEl.classList.remove('show');
+  if(!firebaseReady){
+    errEl.style.color='var(--signal)';
+    errEl.textContent='Sign-in isn\'t configured yet — see FIREBASE_CONFIG setup notes in the code.';
+    errEl.classList.add('show');
+    return;
+  }
+  const provider=new firebase.auth.GoogleAuthProvider();
+  // Popup first: works reliably in a normal browser tab, and — importantly —
+  // avoids a known failure mode of signInWithRedirect inside an installed
+  // standalone PWA, where Firebase's pre-redirect state write can silently
+  // no-op instead of throwing, which looks like "the button does nothing."
+  firebase.auth().signInWithPopup(provider).then(result=>{
+    enterApp(result.user);
+    hideAuthPrompt();
+  }).catch(err=>{
+    const code=err&&err.code||'';
+    const popupFailed=['popup-blocked','popup-closed-by-user','cancelled-popup-request','operation-not-supported-in-this-environment'].some(c=>code.includes(c));
+    if(popupFailed){
+      // Popup couldn't run in this context — try redirect as a second attempt.
+      firebase.auth().signInWithRedirect(provider).catch(()=>{
+        errEl.style.color='var(--signal)';
+        errEl.textContent='Could not open Google sign-in here. Try opening pharmasafe.site directly in Safari or Chrome, rather than the installed app icon.';
+        errEl.classList.add('show');
+      });
+      return;
+    }
+    const msg=friendlyAuthError(err);
+    if(!msg)return;
+    errEl.style.color='var(--signal)';
+    errEl.textContent=msg;
+    errEl.classList.add('show');
+  });
+}
+
+async function handleSignup(e){
+  e.preventDefault();
+  const name=$('signupName').value.trim();
+  const email=$('signupEmail').value.trim().toLowerCase();
+  const pw=$('signupPassword').value;
+  const errEl=$('signupErr');
+  errEl.classList.remove('show');
+  if(!firebaseReady){
+    errEl.style.color='var(--signal)';
+    errEl.textContent='Sign-in isn\'t configured yet — see FIREBASE_CONFIG setup notes in the code.';
+    errEl.classList.add('show');
+    return false;
+  }
+  authBusy('signupSubmitBtn',true,'Create account');
+  try{
+    await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+    const cred=await firebase.auth().createUserWithEmailAndPassword(email,pw);
+    if(name)await cred.user.updateProfile({displayName:name});
+    enterApp(cred.user);
+    hideAuthPrompt();
+  }catch(err){
+    errEl.style.color='var(--signal)';
+    errEl.textContent=friendlyAuthError(err);
+    errEl.classList.add('show');
+  }finally{
+    authBusy('signupSubmitBtn',false,'Create account');
+  }
+  return false;
+}
+
+async function handleLogin(e){
+  e.preventDefault();
+  const email=$('loginEmail').value.trim().toLowerCase();
+  const pw=$('loginPassword').value;
+  const errEl=$('loginErr');
+  errEl.classList.remove('show');
+  if(!firebaseReady){
+    errEl.style.color='var(--signal)';
+    errEl.textContent='Sign-in isn\'t configured yet — see FIREBASE_CONFIG setup notes in the code.';
+    errEl.classList.add('show');
+    return false;
+  }
+  authBusy('loginSubmitBtn',true,'Log in');
+  try{
+    await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL); // stay logged in on future visits
+    const cred=await firebase.auth().signInWithEmailAndPassword(email,pw);
+    enterApp(cred.user);
+    hideAuthPrompt();
+  }catch(err){
+    errEl.textContent=friendlyAuthError(err);
+    errEl.classList.add('show');
+  }finally{
+    authBusy('loginSubmitBtn',false,'Log in');
+  }
+  return false;
+}
+
+function handleLogout(){
+  const pill=$('userPill');
+  if(pill){pill.style.pointerEvents='none';pill.style.opacity='.55';}
+  if($('userPillName'))$('userPillName').textContent='Logging out…';
+  if(!firebaseReady){location.reload();return;}
+  firebase.auth().signOut().catch(()=>{}).finally(()=>location.reload());
+}
+
+function enterApp(user){
+  currentUser=user;
+  const name=user.displayName || user.email;
+  $('userPillName').textContent=name;
+  $('userPill').style.display='flex';
+  $('loginLink').style.display='none';
+}
+
+function initApp(){
+  go('home');
+  boot();
+  setAutoRefresh($('autoSelect').value);
+  // Non-critical Firestore read: keep it off the first-render critical path.
+  const loadRatings=()=>loadRatingSummary();
+  if('requestIdleCallback' in window) requestIdleCallback(loadRatings,{timeout:2500});
+  else setTimeout(loadRatings,1200);
+}
+
+/* Tool-use tracking → shows one skippable sign-in nudge after ~2 tool uses, never for logged-in users */
+function trackToolUse(){
+  if(currentUser)return;
+  if(localStorage.getItem('pharmasafe_auth_prompt_shown'))return;
+  const n=parseInt(localStorage.getItem('pharmasafe_tool_uses')||'0',10)+1;
+  localStorage.setItem('pharmasafe_tool_uses',String(n));
+  if(n>=2){
+    localStorage.setItem('pharmasafe_auth_prompt_shown','1');
+    showAuthPrompt('nudge');
+  }
+}
+
+if(firebaseReady){
+  firebase.auth().onAuthStateChanged(user=>{ if(user)enterApp(user); });
+  // Catches the user coming back after signInWithRedirect() sent them to
+  // Google and back. Runs once on load; harmless no-op for a normal
+  // email/password visit since there's simply no redirect result to find.
+  firebase.auth().getRedirectResult().then(result=>{
+    if(result && result.user){
+      enterApp(result.user);
+      hideAuthPrompt();
+    }
+  }).catch(err=>{
+    const msg=friendlyAuthError(err);
+    if(!msg)return; // user just backed out of the Google flow — not a real error
+    const errEl=$('googleErr');
+    errEl.style.color='var(--signal)';
+    errEl.textContent=msg;
+    errEl.classList.add('show');
+  });
+}else{
+  // FIREBASE_CONFIG still has placeholder values — surface the setup notice.
+  $('identityWarning').style.display='block';
+}
+
+// The app is usable immediately — sign-in is optional, prompted softly after a couple of tool uses.
+initApp();
