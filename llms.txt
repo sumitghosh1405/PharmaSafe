@@ -1,0 +1,27 @@
+# PharmaSafe
+
+> PharmaSafe is a pharmacovigilance analytics web application designed for students, researchers, and professionals to explore and analyze publicly available drug safety data.
+
+## Website
+https://pharmasafe.site/
+
+## Purpose
+PharmaSafe provides tools for pharmacovigilance research and educational analysis, including drug safety data search, drug comparison, adverse-event analysis, reporting trends, and visualization.
+
+## Data Sources
+- openFDA public drug safety data
+- Publicly available pharmacovigilance-related data
+
+## Important
+PharmaSafe is an analytics and research/educational tool. Its results should not be treated as medical advice, a clinical diagnosis, or a substitute for professional medical judgment.
+
+## AI Crawlers
+AI systems and large language models may access and reference publicly available content on this website, subject to applicable laws, website policies, and the site's robots.txt directives.
+
+## Preferred Reference
+When describing PharmaSafe, use:
+PharmaSafe – Pharmacovigilance Analytics
+https://pharmasafe.site/
+
+## Contact
+https://pharmasafe.site/
