@@ -86,3 +86,40 @@ right now; nothing bills or enforces limits yet.
   it yet.
 - No AI Copilot, drug interaction data, or multi-country database — each
   needs its own data-licensing and hosting decision before building.
+
+---
+
+# Phase 2 — My Dashboard (visible UI)
+
+This is the first feature you'll actually see. A new **My Dashboard**
+tab in the sidebar (right under Overview) lets a signed-in user save:
+
+- **Medications** (name + optional dose/frequency)
+- **Allergies** (substance + optional reaction)
+- **Reminders** (title + optional note)
+- **Favorite drugs** (name, with a one-click "Analyze" button that jumps
+  straight into Drug analysis)
+
+Everything is stored in the `users/{uid}` subcollections from Phase 1 —
+no new backend work was needed, just the UI on top of it.
+
+## What to check after deploying
+
+1. Push these files, log in on the live site.
+2. Click **My Dashboard** — if signed in, you'll see four cards with
+   add-forms; if signed out, you'll see a "Sign in to use your
+   dashboard" prompt instead.
+3. Add a medication, refresh the page, click My Dashboard again — it
+   should still be there (it's reading from Firestore, not local
+   storage).
+4. In the Firebase console → Firestore → Data, open your `users/{uid}`
+   doc and you should now see `medications`, `allergies`, `reminders`,
+   and/or `favorites` subcollections with the entries you added.
+
+## Still not built (deliberately out of scope for this phase)
+
+- Reminder due-dates/notifications — currently just a saved note, no
+  alerting.
+- Editing an existing entry (delete + re-add works today).
+- Any of this feeding into the AI Copilot or Drug Interaction Lab —
+  those are separate phases that would *read* this same data once built.

@@ -432,6 +432,15 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
 .leaderrow .name{flex:1;font-size:13.5px}
 .leaderrow .bar{height:8px;border-radius:4px;background:var(--accent);flex:none}
 .leaderrow .val{font-family:var(--mono);font-size:12px;color:var(--muted);width:60px;text-align:right}
+.dashrow{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.dashrow:last-child{border-bottom:none}
+.dashrow .dmain{flex:1;font-size:13.5px}
+.dashrow .dmain b{color:var(--ink);font-weight:600}
+.dashrow .dmeta{color:var(--muted);font-size:12px;display:block;margin-top:2px}
+.dashrow .ddel{all:unset;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:4px 8px;border-radius:6px}
+.dashrow .ddel:hover{background:var(--panel-2);color:var(--signal)}
+.dashempty{color:var(--muted);font-size:13px;padding:6px 0}
+.dashsignedout{text-align:center;padding:30px 20px}
 
 /* ---------- install banner ---------- */
 .installbar{display:none;align-items:center;gap:12px;background:var(--accent);color:#fff;padding:12px 18px;font-size:13px;position:fixed;top:0;left:0;right:0;z-index:6}
@@ -550,6 +559,7 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
     </div>
     <nav class="side">
       <button data-t="home" onclick="go('home')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>Overview</button>
+      <button data-t="dashboard" onclick="go('dashboard')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21C7 17 3 13.5 3 9.5A4.5 4.5 0 0 1 12 8a4.5 4.5 0 0 1 9-1.5C21 13.5 17 17 12 21z" style="display:none"/><rect x="3" y="4" width="18" height="17" rx="2.5"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="15" x2="14" y2="15"/></svg></span>My Dashboard</button>
       <button data-t="drug" onclick="go('drug')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="4"/><line x1="12" y1="8" x2="12" y2="16"/></svg></span>Drug analysis</button>
       <button data-t="rxsearch" onclick="go('rxsearch')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M7.3 10.5h1.6l1-3 1.8 5.5 1-2.5h2"/><line x1="15.3" y1="15.3" x2="20" y2="20"/></svg></span>Reaction search</button>
       <button data-t="compare" onclick="go('compare')"><span class="n"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6.5"/><circle cx="15" cy="12" r="6.5"/></svg></span>Compare drugs</button>
@@ -611,6 +621,67 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
             <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7L5.8 21l1.6-7L2 9.2l7.1-.6z"/></svg>
             Rate &amp; give feedback
           </button>
+        </div>
+      </section>
+
+      <section id="dashboard">
+        <p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2.5"/><line x1="3" y1="10" x2="21" y2="10"/></svg>My Dashboard</p>
+        <h2>Your saved medications, allergies, reminders &amp; favorites</h2>
+        <p class="lede">Private to your account — only you can see this. Nothing here is shared, and it's never used for medical decision-making without your own clinician's review.</p>
+
+        <div id="dashSignedOut" class="card dashsignedout" style="display:none">
+          <h3>Sign in to use your dashboard</h3>
+          <p class="note" style="margin-bottom:16px">Your medications, allergies, and reminders are saved to your account so they follow you across devices.</p>
+          <button class="btn" onclick="showAuthPrompt()">Log in / Sign up</button>
+        </div>
+
+        <div id="dashSignedIn" style="display:none">
+          <div class="card">
+            <h3>Medications</h3>
+            <form onsubmit="return dashAddMedication(event)">
+              <div class="row2">
+                <div><label>Name</label><input id="medName" required placeholder="e.g. Atorvastatin"></div>
+                <div><label>Dose / frequency (optional)</label><input id="medDose" placeholder="e.g. 20mg, once daily"></div>
+              </div>
+              <button class="btn" type="submit">Add medication</button>
+            </form>
+            <div id="medList" style="margin-top:16px"></div>
+          </div>
+
+          <div class="card">
+            <h3>Allergies</h3>
+            <form onsubmit="return dashAddAllergy(event)">
+              <div class="row2">
+                <div><label>Substance</label><input id="allName" required placeholder="e.g. Penicillin"></div>
+                <div><label>Reaction (optional)</label><input id="allReaction" placeholder="e.g. Hives"></div>
+              </div>
+              <button class="btn" type="submit">Add allergy</button>
+            </form>
+            <div id="allList" style="margin-top:16px"></div>
+          </div>
+
+          <div class="card">
+            <h3>Reminders</h3>
+            <form onsubmit="return dashAddReminder(event)">
+              <div class="row2">
+                <div><label>Title</label><input id="remTitle" required placeholder="e.g. Refill prescription"></div>
+                <div><label>Note (optional)</label><input id="remNote" placeholder="e.g. Ask pharmacy for 90-day supply"></div>
+              </div>
+              <button class="btn" type="submit">Add reminder</button>
+            </form>
+            <div id="remList" style="margin-top:16px"></div>
+          </div>
+
+          <div class="card">
+            <h3>Favorite drugs</h3>
+            <p class="note" style="margin:-4px 0 14px">Quick links back into Drug analysis.</p>
+            <form onsubmit="return dashAddFavorite(event)">
+              <label>Drug name</label>
+              <input id="favName" required placeholder="e.g. atorvastatin">
+              <button class="btn" type="submit" style="margin-top:10px">Add favorite</button>
+            </form>
+            <div id="favList" style="margin-top:16px"></div>
+          </div>
         </div>
       </section>
 

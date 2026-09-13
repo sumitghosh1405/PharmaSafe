@@ -9,7 +9,7 @@ const ICONS={
 const BASE="https://api.fda.gov/drug/event.json";
 const LABEL_BASE="https://api.fda.gov/drug/label.json";
 
-const TITLES={home:'Overview',drug:'Drug analysis',rxsearch:'Reaction search',compare:'Compare drugs',signal:'Signal detection',outcomes:'Outcome severity',trend:'Trend',case:'Report viewer',leaderboard:'Leaderboard',recent:'Recent reports'};
+const TITLES={home:'Overview',dashboard:'My Dashboard',drug:'Drug analysis',rxsearch:'Reaction search',compare:'Compare drugs',signal:'Signal detection',outcomes:'Outcome severity',trend:'Trend',case:'Report viewer',leaderboard:'Leaderboard',recent:'Recent reports'};
 let currentSection='home';
 function go(x){
   document.querySelectorAll('section').forEach(s=>s.classList.remove('active'));
@@ -20,6 +20,7 @@ function go(x){
   // No-input sections load themselves automatically the first time you open them.
   if(x==='recent' && !state.recent.loaded)recent();
   if(x==='leaderboard' && !state.leaderboard.loaded)leaderboard();
+  if(x==='dashboard')renderDashboard();
 }
 function esc(x){return String(x??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 
@@ -1846,6 +1847,91 @@ async function deleteUserItem(name,docId){
   await db.collection('users').doc(currentUser.uid).collection(name).doc(docId).delete();
 }
 
+/* ---------- My Dashboard UI (first feature built on the data layer above) ---------- */
+
+function dashRow(collectionName,id,mainHtml,metaHtml){
+  return `<div class="dashrow"><span class="dmain">${mainHtml}${metaHtml?`<span class="dmeta">${metaHtml}</span>`:''}</span><button class="ddel" title="Remove" onclick="dashDelete('${collectionName}','${id}')">&times;</button></div>`;
+}
+
+async function renderDashList(collectionName,containerId,rowFn,emptyText){
+  const el=$(containerId);
+  if(!el)return;
+  el.innerHTML='<div class="dashempty">Loading…</div>';
+  const items=await getUserItems(collectionName);
+  if(!items.length){ el.innerHTML=`<div class="dashempty">${emptyText}</div>`; return; }
+  el.innerHTML=items.map(it=>rowFn(it)).join('');
+}
+
+async function renderDashboard(){
+  if(!currentUser){
+    $('dashSignedOut').style.display='block';
+    $('dashSignedIn').style.display='none';
+    return;
+  }
+  $('dashSignedOut').style.display='none';
+  $('dashSignedIn').style.display='block';
+  renderDashList('medications','medList',
+    it=>dashRow('medications',it.id,`<b>${esc(it.name)}</b>`,it.dose?esc(it.dose):''),
+    'No medications saved yet.');
+  renderDashList('allergies','allList',
+    it=>dashRow('allergies',it.id,`<b>${esc(it.name)}</b>`,it.reaction?esc(it.reaction):''),
+    'No allergies saved yet.');
+  renderDashList('reminders','remList',
+    it=>dashRow('reminders',it.id,`<b>${esc(it.title)}</b>`,it.note?esc(it.note):''),
+    'No reminders saved yet.');
+  renderDashList('favorites','favList',
+    it=>`<div class="dashrow"><span class="dmain"><b>${esc(it.name)}</b></span><button class="btn ghost" style="margin-right:6px" onclick="dashAnalyzeFavorite('${esc(it.name).replace(/'/g,"\\'")}')">Analyze</button><button class="ddel" title="Remove" onclick="dashDelete('favorites','${it.id}')">&times;</button></div>`,
+    'No favorites saved yet.');
+}
+
+async function dashDelete(collectionName,id){
+  try{ await deleteUserItem(collectionName,id); renderDashboard(); }
+  catch(e){ console.error('PharmaSafe: could not remove item:',e); }
+}
+
+function dashAnalyzeFavorite(name){
+  go('drug');
+  $('drugName').value=name;
+  drugSearch();
+}
+
+async function dashAddMedication(e){
+  e.preventDefault();
+  const name=$('medName').value.trim(), dose=$('medDose').value.trim();
+  if(!name)return false;
+  await addUserItem('medications',{name,dose:dose||null});
+  $('medName').value='';$('medDose').value='';
+  renderDashboard();
+  return false;
+}
+async function dashAddAllergy(e){
+  e.preventDefault();
+  const name=$('allName').value.trim(), reaction=$('allReaction').value.trim();
+  if(!name)return false;
+  await addUserItem('allergies',{name,reaction:reaction||null});
+  $('allName').value='';$('allReaction').value='';
+  renderDashboard();
+  return false;
+}
+async function dashAddReminder(e){
+  e.preventDefault();
+  const title=$('remTitle').value.trim(), note=$('remNote').value.trim();
+  if(!title)return false;
+  await addUserItem('reminders',{title,note:note||null});
+  $('remTitle').value='';$('remNote').value='';
+  renderDashboard();
+  return false;
+}
+async function dashAddFavorite(e){
+  e.preventDefault();
+  const name=$('favName').value.trim();
+  if(!name)return false;
+  await addUserItem('favorites',{name});
+  $('favName').value='';
+  renderDashboard();
+  return false;
+}
+
 function switchAuthTab(tab){
   $('tabLogin').classList.toggle('active',tab==='login');
   $('tabSignup').classList.toggle('active',tab==='signup');
@@ -1997,6 +2083,7 @@ function enterApp(user){
   $('userPill').style.display='flex';
   $('loginLink').style.display='none';
   ensureUserProfile(user); // fire-and-forget: never blocks the UI on a Firestore round-trip
+  if(currentSection==='dashboard')renderDashboard();
 }
 
 function initApp(){
