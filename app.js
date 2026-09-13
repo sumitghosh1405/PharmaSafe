@@ -1758,6 +1758,94 @@ if(firebaseReady){
 
 let currentUser=null;
 
+/* ---------- per-user data layer (SaaS foundation) ----------
+   Every signed-in user gets exactly one profile doc at users/{uid},
+   created once on first sign-in and never overwritten after (merge:true
+   on fields that are safe to refresh, e.g. displayName/email/lastLoginAt).
+   `plan` starts everyone on 'free' — this is the field any future paid-tier
+   gating (e.g. AI Copilot usage limits) reads from.
+
+   Personal-dashboard data (medications, allergies, reminders, favorites,
+   vaccines — item 13 in the roadmap, and inputs to the AI Copilot and
+   Pharmacist Workspace later) lives in subcollections under that same
+   users/{uid} doc: users/{uid}/medications/{docId}, etc. The generic
+   userCollection() helpers below work for any of those collection names,
+   so adding a new personal-data feature later never needs a rules change
+   (see firestore.rules) or a new set of CRUD functions here.
+
+   All of this requires Firestore Database to be enabled once in the
+   Firebase console (Build → Firestore Database → Create database) and
+   firestore.rules deployed — see DEPLOY.md. Until then these calls fail
+   closed (caught, logged, no crash) exactly like the existing ratings code. */
+
+function userDb(){ return getRatingsDb(); } // same lazy Firestore handle used by ratings; one Firestore instance per page
+
+async function ensureUserProfile(user){
+  const db=userDb();
+  if(!db || !user) return;
+  try{
+    const ref=db.collection('users').doc(user.uid);
+    const snap=await ref.get();
+    if(!snap.exists){
+      await ref.set({
+        uid:user.uid,
+        email:user.email||null,
+        displayName:user.displayName||null,
+        plan:'free',
+        createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+        lastLoginAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }else{
+      await ref.set({
+        displayName:user.displayName||null,
+        lastLoginAt:firebase.firestore.FieldValue.serverTimestamp()
+      },{merge:true});
+    }
+  }catch(e){
+    console.error('PharmaSafe: could not create/update user profile:',e);
+  }
+}
+
+async function getUserProfile(){
+  const db=userDb();
+  if(!db || !currentUser) return null;
+  try{
+    const snap=await db.collection('users').doc(currentUser.uid).get();
+    return snap.exists ? snap.data() : null;
+  }catch(e){
+    console.error('PharmaSafe: could not load user profile:',e);
+    return null;
+  }
+}
+
+/* Generic per-user subcollection helpers.
+   name: 'medications' | 'allergies' | 'reminders' | 'favorites' | any future list. */
+async function addUserItem(name,data){
+  const db=userDb();
+  if(!db || !currentUser) throw new Error('Sign in required.');
+  const ref=await db.collection('users').doc(currentUser.uid).collection(name).add({
+    ...data,
+    createdAt:firebase.firestore.FieldValue.serverTimestamp()
+  });
+  return ref.id;
+}
+async function getUserItems(name){
+  const db=userDb();
+  if(!db || !currentUser) return [];
+  try{
+    const snap=await db.collection('users').doc(currentUser.uid).collection(name).orderBy('createdAt','desc').get();
+    return snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){
+    console.error(`PharmaSafe: could not load ${name}:`,e);
+    return [];
+  }
+}
+async function deleteUserItem(name,docId){
+  const db=userDb();
+  if(!db || !currentUser) throw new Error('Sign in required.');
+  await db.collection('users').doc(currentUser.uid).collection(name).doc(docId).delete();
+}
+
 function switchAuthTab(tab){
   $('tabLogin').classList.toggle('active',tab==='login');
   $('tabSignup').classList.toggle('active',tab==='signup');
@@ -1908,6 +1996,7 @@ function enterApp(user){
   $('userPillName').textContent=name;
   $('userPill').style.display='flex';
   $('loginLink').style.display='none';
+  ensureUserProfile(user); // fire-and-forget: never blocks the UI on a Firestore round-trip
 }
 
 function initApp(){

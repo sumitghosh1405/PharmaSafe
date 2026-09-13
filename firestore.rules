@@ -1,0 +1,59 @@
+rules_version = '2';
+
+/*
+  PharmaSafe — Firestore security rules
+  --------------------------------------
+  Two zones:
+
+  1. /ratings/{ratingId}      — anonymous, public. Unchanged from the
+     existing feedback-star feature. Write-once, no uid attached, no
+     update/delete ever allowed (protects the public average from
+     tampering).
+
+  2. /users/{uid}             — the new per-user foundation. Every
+     signed-in user gets exactly one profile doc, addressable only by
+     their own uid, plus personal subcollections (medications,
+     allergies, reminders, favorites) that later features (Personalized
+     Dashboard, Pharmacist Workspace, AI Copilot history) will read and
+     write. A user can only ever touch their own uid's tree — never
+     another user's — and the rule doesn't care which subcollection
+     name is used, so new personal-data features can ship without a
+     rules change.
+
+  Anything not explicitly matched below is denied by default.
+*/
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- public star ratings (existing feature, unchanged) ----------
+    match /ratings/{ratingId} {
+      allow read: if true;
+
+      allow create: if request.resource.data.keys().hasOnly(['rating', 'ts'])
+                    && request.resource.data.rating is int
+                    && request.resource.data.rating >= 1
+                    && request.resource.data.rating <= 5;
+
+      allow update, delete: if false;
+    }
+
+    // ---------- per-user profile ----------
+    match /users/{uid} {
+      allow read, update: if request.auth != null && request.auth.uid == uid;
+
+      allow create: if request.auth != null && request.auth.uid == uid
+                    && request.resource.data.uid == uid
+                    && request.resource.data.plan == 'free';
+
+      allow delete: if false; // account deletion goes through Auth admin flow, not a client doc delete
+
+      // ---------- personal-dashboard subcollections ----------
+      // Covers medications, allergies, reminders, favorites, vaccine records,
+      // and any future personal list — all scoped to the owning uid only.
+      match /{collection}/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+  }
+}
