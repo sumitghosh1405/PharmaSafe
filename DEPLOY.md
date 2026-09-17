@@ -116,6 +116,24 @@ no new backend work was needed, just the UI on top of it.
    doc and you should now see `medications`, `allergies`, `reminders`,
    and/or `favorites` subcollections with the entries you added.
 
+## Updating the live site (cache versioning)
+
+The app is installable to a phone's home screen, so a returning visitor
+— installed or not — can otherwise get served an old cached copy after
+you push a change. Two things fix that, and both are already wired up;
+you only need to bump a number on every deploy:
+
+1. In **`sw.js`**, increment the number in `const CACHE =
+   'pharmasafe-shell-vN'`.
+2. In **`index.html`**, bump the matching `?v=N` on
+   `<script src="app.js?v=N" defer></script>` to the same number.
+
+Bumping both on each push forces the service worker to install and
+activate fresh, and forces browsers to fetch the current `app.js`
+instead of a cached one — so every visitor moves from whatever version
+they had to the one you just deployed, without needing to manually
+clear their cache.
+
 ## Still not built (deliberately out of scope for this phase)
 
 - Reminder due-dates/notifications — currently just a saved note, no

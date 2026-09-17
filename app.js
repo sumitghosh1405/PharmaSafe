@@ -742,7 +742,12 @@ async function runPdfExport(btn,job){
   try{await job();}catch(e){console.error('PDF export failed:',e);alert(e.message||'PDF export failed. Please try again.');}
   finally{if(btn){btn.disabled=false;btn.textContent=old;btn.removeAttribute('aria-busy');}window.__pharmaPdfBusy=false;}
 }
-function exportButton(label,fn){return `<button class="btn ghost" type="button" onclick="${fn}(this)">${label}</button>`;}
+function trackedExport(fn,btn){
+  const action=window[fn];
+  if(typeof action==='function')return action(btn);
+  console.error('PharmaSafe: export action not found:',fn);
+}
+function exportButton(label,fn){return `<button class="btn ghost" type="button" onclick="trackedExport('${fn}',this)">${label}</button>`;}
 function countUp(el,target){
   const start=0,dur=700,t0=performance.now();
   function step(t){
@@ -876,7 +881,8 @@ async function drugSearch(silent){
           ['Limitations',FAERS_LIMITATIONS_HTML]
         ])}
         <div class="actions">
-          <button class="btn ghost" type="button" onclick='exportDrugCSV(${esc(JSON.stringify(displayName))},${esc(JSON.stringify(rx))})'>Export CSV</button>
+          <button class="btn researchDrugBtn" id="researchDrugBtn" type="button" data-drug-name="${esc(displayName)}" data-report-count="${reports}" onclick="addCurrentDrugToResearch()">+ Add to Research</button>
+          <button class="btn ghost" type="button" onclick='trackedExport("exportDrugCSV",this)'>Export CSV</button>
           ${exportButton('Export PDF','exportDrugPDF')}
           <button class="btn ghost" type="button" onclick="go('outcomes');$('outDrug').value=${esc(JSON.stringify(displayName))};outcomes()">Outcome severity →</button>
         </div>`;
@@ -888,6 +894,7 @@ async function drugSearch(silent){
       sexChart=new Chart($('sexChart'),{type:'bar',data:{labels:sexData.map(s=>s.label),datasets:[{data:sexData.map(s=>s.count),backgroundColor:['#2563eb','#db2777','#94a3b8'],borderRadius:4}]},
         options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw.toLocaleString()} reports`}}},scales:{x:{beginAtZero:true,grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false},ticks:{autoSkip:false}}}}});
       state.drug={loaded:true,name:n};
+      if(!silent){recordDrugAnalysis(displayName,reports);updateResearchButton(displayName);}
       if(silent)flashUpdated('drugOut');
     }catch(e){
       if(silent)console.warn('auto-refresh (drug) failed:',e.message);
@@ -895,7 +902,8 @@ async function drugSearch(silent){
     }
   },silent);
 }
-function exportDrugCSV(name,rx){csvDownload('pharmasafe_'+name.replace(/\W+/g,'_')+'_reactions.csv',[['reaction_term','report_count'],...rx.map(r=>[r.term,r.count])]);}
+function exportDrugCSV(name,rx){
+  trackActivity('exports');csvDownload('pharmasafe_'+name.replace(/\W+/g,'_')+'_reactions.csv',[['reaction_term','report_count'],...rx.map(r=>[r.term,r.count])]);}
 function useSignal(d,r){$('sigDrug').value=d;$('sigRx').value=r;go('signal');signal()}
 
 /* ---------- reaction / MedDRA PT search (mirror of drug analysis, reversed) ---------- */
@@ -954,7 +962,8 @@ async function reactionSearch(silent){
     }
   },silent);
 }
-function exportReactionCSV(name,drugs){csvDownload('pharmasafe_'+name.replace(/\W+/g,'_')+'_drugs.csv',[['drug','report_count'],...drugs.map(d=>[d.term,d.count])]);}
+function exportReactionCSV(name,drugs){
+  trackActivity('exports');csvDownload('pharmasafe_'+name.replace(/\W+/g,'_')+'_drugs.csv',[['drug','report_count'],...drugs.map(d=>[d.term,d.count])]);}
 
 /* ---------- compare ---------- */
 let cmpChartA,cmpChartB,cmpTotalsChart;
@@ -1000,6 +1009,7 @@ async function compareDrugs(silent){
       cmpChartB=new Chart($('cmpChartB'),{type:'bar',data:{labels:topB.map(r=>r.term),datasets:[{data:topB.map(r=>r.count),backgroundColor:PAL[1],borderRadius:4}]},
         options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false}}}}});
       state.compare={loaded:true,a,b};
+      if(!silent)recordComparison();
       if(silent)flashUpdated('cmpOut');
     }catch(e){
       if(silent)console.warn('auto-refresh (compare) failed:',e.message);
@@ -1514,6 +1524,7 @@ async function caseView(){
       const seriousFmt=z.serious==='1'?'Yes':z.serious==='2'?'No':'Not reported';
       const drugsRows=drugs.map(d=>`<tr><td>${esc(d.name)||'Unnamed product'}</td><td>${esc(d.role)}</td><td>${esc(d.indication)||'—'}</td></tr>`).join('');
       lastCaseExport={id:z.safetyreportid,received:receivedFmt,serious:seriousFmt,country:z.occurcountry||'Not reported',age:fmtAge(p.patientonsetage,p.patientonsetageunit),sex:fmtSex(p.patientsex),drugs,reactions};
+      recordReportExplored(z.safetyreportid);
       $('caseOut').innerHTML=`<div class="card" style="margin-top:14px">
         <h3>Report ${esc(z.safetyreportid)}</h3>
         <div class="chips">
@@ -1650,25 +1661,41 @@ async function recent(silent){
     }
   },silent);
 }
-function exportRecentCSV(out){csvDownload('pharmasafe_recent_reports.csv',[['id','received','age','sex','drugs','reactions'],...out.map(r=>[r.id,r.received,fmtAge(r.age,r.ageUnit),fmtSex(r.sex),r.drugs.join('; '),r.reactions.join('; ')])]);}
-async function exportRecentPDF(out,btn){await runPdfExport(btn,()=>pdfDownload('pharmasafe_recent_reports.pdf','PharmaSafe — Recent Reports',['ID','Received','Age','Sex','Drugs','Reactions'],out.map(r=>[r.id,r.received,fmtAge(r.age,r.ageUnit),fmtSex(r.sex),r.drugs.join(', ')||'—',r.reactions.join(', ')||'—']),{columnStyles:{4:{cellWidth:70},5:{cellWidth:70}}}));}
+function exportRecentCSV(out){
+  trackActivity('exports');csvDownload('pharmasafe_recent_reports.csv',[['id','received','age','sex','drugs','reactions'],...out.map(r=>[r.id,r.received,fmtAge(r.age,r.ageUnit),fmtSex(r.sex),r.drugs.join('; '),r.reactions.join('; ')])]);}
+async function exportRecentPDF(out,btn){
+  trackActivity('exports');await runPdfExport(btn,()=>pdfDownload('pharmasafe_recent_reports.pdf','PharmaSafe — Recent Reports',['ID','Received','Age','Sex','Drugs','Reactions'],out.map(r=>[r.id,r.received,fmtAge(r.age,r.ageUnit),fmtSex(r.sex),r.drugs.join(', ')||'—',r.reactions.join(', ')||'—']),{columnStyles:{4:{cellWidth:70},5:{cellWidth:70}}}));}
 
 
 /* ---------- universal tool exports ---------- */
-function exportDrugPDF(btn){const x=window.__lastDrugExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_reactions.pdf','PharmaSafe — '+x.name+' reactions',['Reaction term','Report count'],x.rx.map(r=>[r.term,r.count])));}
-function exportReactionPDF(btn){const x=window.__lastReactionExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_drugs.pdf','PharmaSafe — '+x.name+' implicated drugs',['Drug','Report count'],x.drugs.map(d=>[d.term,d.count])));}
-function exportCompareCSV(btn){const x=lastCompareExport;if(!x)return;csvDownload('pharmasafe_compare.csv',[['Metric',x.nameA,x.nameB],['Total reports',x.totA,x.totB],[],['Reaction',x.nameA+' reports',x.nameB+' reports'],...x.rows]);}
-function exportComparePDF(btn){const x=lastCompareExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_compare.pdf','PharmaSafe — Drug Comparison',['Reaction',x.nameA+' reports',x.nameB+' reports'],[['TOTAL REPORTS',x.totA,x.totB],...x.rows]));}
-function exportOutcomesCSV(btn){const x=lastOutcomeExport;if(!x)return;csvDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_outcomes.csv',[['outcome','report_count','percent_of_total'],...x.data.map(d=>[d.label,d.count,d.pct.toFixed(1)+'%'])]);}
-function exportOutcomesPDF(btn){const x=lastOutcomeExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_outcomes.pdf','PharmaSafe — '+x.name+' outcome severity',['Outcome','Reports','% of total'],x.data.map(d=>[d.label,d.count,d.pct.toFixed(1)+'%'])));}
-function exportSignalCSV(btn){const x=lastSignalExport;if(!x)return;csvDownload('pharmasafe_signal.csv',[['drug','reaction','a_drug_reaction','b_drug_other_reactions','c_other_drugs_reaction','d_other_drugs_other_reactions','ROR','ROR_95CI_low','ROR_95CI_high','PRR','flagged'],[x.drug,x.rx,x.a,x.b,x.c,x.d,x.r.toFixed(4),x.lo.toFixed(4),x.hi.toFixed(4),x.p.toFixed(4),x.flag?'Potential statistical signal':'Not flagged']]);}
-function exportSignalPDF(btn){const x=lastSignalExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_signal.pdf','PharmaSafe — Signal Detection',['Metric','Value'],[['Drug',x.drug],['Reaction',x.rx],['a — drug + reaction',x.a],['b — drug + other reactions',x.b],['c — other drugs + reaction',x.c],['d — other drugs + other reactions',x.d],['ROR',x.r.toFixed(4)],['95% CI',x.lo.toFixed(4)+' – '+x.hi.toFixed(4)],['PRR',x.p.toFixed(4)],['Research screen',x.flag?'Potential statistical signal':'Not flagged']]));}
-function exportCaseCSV(btn){const x=lastCaseExport;if(!x)return;csvDownload('pharmasafe_report_'+x.id+'.csv',[['field','value'],['Report ID',x.id],['Received',x.received],['Serious',x.serious],['Country',x.country],['Age',x.age],['Sex',x.sex],[],['Drug','Role','Indication'],...x.drugs.map(d=>[d.name,d.role,d.indication||'—']),[],['Reactions'],...x.reactions.map(r=>[r])]);}
-function exportCasePDF(btn){const x=lastCaseExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_report_'+x.id+'.pdf','PharmaSafe — Report '+x.id,['Field','Value'],[['Received',x.received],['Serious',x.serious],['Country',x.country],['Age',x.age],['Sex',x.sex],['Drugs',x.drugs.map(d=>d.name).join(', ')||'—'],['Reactions',x.reactions.join(', ')||'—']]));}
-function exportTrendCSV(btn){const x=lastTrendExport;if(!x)return;csvDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_trend.csv',[['month','report_count'],...x.rows]);}
-function exportTrendPDF(btn){const x=lastTrendExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_trend.pdf','PharmaSafe — '+x.name+' trend',['Month','Report count'],x.rows));}
-function exportLeaderboardCSV(btn){const x=lastLeaderboardExport;if(!x)return;csvDownload('pharmasafe_leaderboard.csv',[['type','rank','term','report_count'],...x.drugs.map((d,i)=>['Drug',i+1,d.term,d.count]),...x.reactions.map((d,i)=>['Reaction',i+1,d.term,d.count])]);}
-function exportLeaderboardPDF(btn){const x=lastLeaderboardExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_leaderboard.pdf','PharmaSafe — Leaderboard',['Type','Rank','Term','Report count'],[...x.drugs.map((d,i)=>['Drug',i+1,d.term,d.count]),...x.reactions.map((d,i)=>['Reaction',i+1,d.term,d.count]) ]));}
+function exportDrugPDF(btn){
+  trackActivity('exports');const x=window.__lastDrugExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_reactions.pdf','PharmaSafe — '+x.name+' reactions',['Reaction term','Report count'],x.rx.map(r=>[r.term,r.count])));}
+function exportReactionPDF(btn){
+  trackActivity('exports');const x=window.__lastReactionExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_drugs.pdf','PharmaSafe — '+x.name+' implicated drugs',['Drug','Report count'],x.drugs.map(d=>[d.term,d.count])));}
+function exportCompareCSV(btn){
+  trackActivity('exports');const x=lastCompareExport;if(!x)return;csvDownload('pharmasafe_compare.csv',[['Metric',x.nameA,x.nameB],['Total reports',x.totA,x.totB],[],['Reaction',x.nameA+' reports',x.nameB+' reports'],...x.rows]);}
+function exportComparePDF(btn){
+  trackActivity('exports');const x=lastCompareExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_compare.pdf','PharmaSafe — Drug Comparison',['Reaction',x.nameA+' reports',x.nameB+' reports'],[['TOTAL REPORTS',x.totA,x.totB],...x.rows]));}
+function exportOutcomesCSV(btn){
+  trackActivity('exports');const x=lastOutcomeExport;if(!x)return;csvDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_outcomes.csv',[['outcome','report_count','percent_of_total'],...x.data.map(d=>[d.label,d.count,d.pct.toFixed(1)+'%'])]);}
+function exportOutcomesPDF(btn){
+  trackActivity('exports');const x=lastOutcomeExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_outcomes.pdf','PharmaSafe — '+x.name+' outcome severity',['Outcome','Reports','% of total'],x.data.map(d=>[d.label,d.count,d.pct.toFixed(1)+'%'])));}
+function exportSignalCSV(btn){
+  trackActivity('exports');const x=lastSignalExport;if(!x)return;csvDownload('pharmasafe_signal.csv',[['drug','reaction','a_drug_reaction','b_drug_other_reactions','c_other_drugs_reaction','d_other_drugs_other_reactions','ROR','ROR_95CI_low','ROR_95CI_high','PRR','flagged'],[x.drug,x.rx,x.a,x.b,x.c,x.d,x.r.toFixed(4),x.lo.toFixed(4),x.hi.toFixed(4),x.p.toFixed(4),x.flag?'Potential statistical signal':'Not flagged']]);}
+function exportSignalPDF(btn){
+  trackActivity('exports');const x=lastSignalExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_signal.pdf','PharmaSafe — Signal Detection',['Metric','Value'],[['Drug',x.drug],['Reaction',x.rx],['a — drug + reaction',x.a],['b — drug + other reactions',x.b],['c — other drugs + reaction',x.c],['d — other drugs + other reactions',x.d],['ROR',x.r.toFixed(4)],['95% CI',x.lo.toFixed(4)+' – '+x.hi.toFixed(4)],['PRR',x.p.toFixed(4)],['Research screen',x.flag?'Potential statistical signal':'Not flagged']]));}
+function exportCaseCSV(btn){
+  trackActivity('exports');const x=lastCaseExport;if(!x)return;csvDownload('pharmasafe_report_'+x.id+'.csv',[['field','value'],['Report ID',x.id],['Received',x.received],['Serious',x.serious],['Country',x.country],['Age',x.age],['Sex',x.sex],[],['Drug','Role','Indication'],...x.drugs.map(d=>[d.name,d.role,d.indication||'—']),[],['Reactions'],...x.reactions.map(r=>[r])]);}
+function exportCasePDF(btn){
+  trackActivity('exports');const x=lastCaseExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_report_'+x.id+'.pdf','PharmaSafe — Report '+x.id,['Field','Value'],[['Received',x.received],['Serious',x.serious],['Country',x.country],['Age',x.age],['Sex',x.sex],['Drugs',x.drugs.map(d=>d.name).join(', ')||'—'],['Reactions',x.reactions.join(', ')||'—']]));}
+function exportTrendCSV(btn){
+  trackActivity('exports');const x=lastTrendExport;if(!x)return;csvDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_trend.csv',[['month','report_count'],...x.rows]);}
+function exportTrendPDF(btn){
+  trackActivity('exports');const x=lastTrendExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_'+x.name.replace(/\W+/g,'_')+'_trend.pdf','PharmaSafe — '+x.name+' trend',['Month','Report count'],x.rows));}
+function exportLeaderboardCSV(btn){
+  trackActivity('exports');const x=lastLeaderboardExport;if(!x)return;csvDownload('pharmasafe_leaderboard.csv',[['type','rank','term','report_count'],...x.drugs.map((d,i)=>['Drug',i+1,d.term,d.count]),...x.reactions.map((d,i)=>['Reaction',i+1,d.term,d.count])]);}
+function exportLeaderboardPDF(btn){
+  trackActivity('exports');const x=lastLeaderboardExport;if(!x)return;return runPdfExport(btn,()=>pdfDownload('pharmasafe_leaderboard.pdf','PharmaSafe — Leaderboard',['Type','Rank','Term','Report count'],[...x.drugs.map((d,i)=>['Drug',i+1,d.term,d.count]),...x.reactions.map((d,i)=>['Reaction',i+1,d.term,d.count]) ]));}
 
 /* ---------- PWA: service worker + install prompts ---------- */
 if('serviceWorker' in navigator){
@@ -1759,27 +1786,8 @@ if(firebaseReady){
 
 let currentUser=null;
 
-/* ---------- per-user data layer (SaaS foundation) ----------
-   Every signed-in user gets exactly one profile doc at users/{uid},
-   created once on first sign-in and never overwritten after (merge:true
-   on fields that are safe to refresh, e.g. displayName/email/lastLoginAt).
-   `plan` starts everyone on 'free' — this is the field any future paid-tier
-   gating (e.g. AI Copilot usage limits) reads from.
-
-   Personal-dashboard data (medications, allergies, reminders, favorites,
-   vaccines — item 13 in the roadmap, and inputs to the AI Copilot and
-   Pharmacist Workspace later) lives in subcollections under that same
-   users/{uid} doc: users/{uid}/medications/{docId}, etc. The generic
-   userCollection() helpers below work for any of those collection names,
-   so adding a new personal-data feature later never needs a rules change
-   (see firestore.rules) or a new set of CRUD functions here.
-
-   All of this requires Firestore Database to be enabled once in the
-   Firebase console (Build → Firestore Database → Create database) and
-   firestore.rules deployed — see DEPLOY.md. Until then these calls fail
-   closed (caught, logged, no crash) exactly like the existing ratings code. */
-
-function userDb(){ return getRatingsDb(); } // same lazy Firestore handle used by ratings; one Firestore instance per page
+/* ---------- per-user data layer (SaaS foundation) ---------- */
+function userDb(){ return getRatingsDb(); }
 
 async function ensureUserProfile(user){
   const db=userDb();
@@ -1789,149 +1797,276 @@ async function ensureUserProfile(user){
     const snap=await ref.get();
     if(!snap.exists){
       await ref.set({
-        uid:user.uid,
-        email:user.email||null,
-        displayName:user.displayName||null,
-        plan:'free',
+        uid:user.uid,email:user.email||null,displayName:user.displayName||null,plan:'free',
         createdAt:firebase.firestore.FieldValue.serverTimestamp(),
         lastLoginAt:firebase.firestore.FieldValue.serverTimestamp()
       });
     }else{
       await ref.set({
-        displayName:user.displayName||null,
+        displayName:user.displayName||null,email:user.email||null,
         lastLoginAt:firebase.firestore.FieldValue.serverTimestamp()
       },{merge:true});
     }
-  }catch(e){
-    console.error('PharmaSafe: could not create/update user profile:',e);
-  }
+  }catch(e){ console.error('PharmaSafe: could not create/update user profile:',e); }
 }
-
 async function getUserProfile(){
   const db=userDb();
   if(!db || !currentUser) return null;
   try{
     const snap=await db.collection('users').doc(currentUser.uid).get();
     return snap.exists ? snap.data() : null;
-  }catch(e){
-    console.error('PharmaSafe: could not load user profile:',e);
-    return null;
-  }
+  }catch(e){ console.error('PharmaSafe: could not load user profile:',e); return null; }
 }
-
-/* Generic per-user subcollection helpers.
-   name: 'medications' | 'allergies' | 'reminders' | 'favorites' | any future list. */
 async function addUserItem(name,data){
   const db=userDb();
   if(!db || !currentUser) throw new Error('Sign in required.');
   const ref=await db.collection('users').doc(currentUser.uid).collection(name).add({
-    ...data,
-    createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    ...data,createdAt:firebase.firestore.FieldValue.serverTimestamp()
   });
   return ref.id;
 }
-async function getUserItems(name){
+async function getUserItems(name,limitCount=0){
   const db=userDb();
   if(!db || !currentUser) return [];
   try{
-    const snap=await db.collection('users').doc(currentUser.uid).collection(name).orderBy('createdAt','desc').get();
+    let qref=db.collection('users').doc(currentUser.uid).collection(name).orderBy('createdAt','desc');
+    if(limitCount>0)qref=qref.limit(limitCount);
+    const snap=await qref.get();
     return snap.docs.map(d=>({id:d.id,...d.data()}));
-  }catch(e){
-    console.error(`PharmaSafe: could not load ${name}:`,e);
-    return [];
-  }
+  }catch(e){ console.error(`PharmaSafe: could not load ${name}:`,e); return []; }
 }
 async function deleteUserItem(name,docId){
   const db=userDb();
   if(!db || !currentUser) throw new Error('Sign in required.');
   await db.collection('users').doc(currentUser.uid).collection(name).doc(docId).delete();
 }
-
-/* ---------- My Dashboard UI (first feature built on the data layer above) ---------- */
-
-function dashRow(collectionName,id,mainHtml,metaHtml){
-  return `<div class="dashrow"><span class="dmain">${mainHtml}${metaHtml?`<span class="dmeta">${metaHtml}</span>`:''}</span><button class="ddel" title="Remove" onclick="dashDelete('${collectionName}','${id}')">&times;</button></div>`;
+async function updateUserItem(name,docId,data){
+  const db=userDb();
+  if(!db || !currentUser) throw new Error('Sign in required.');
+  await db.collection('users').doc(currentUser.uid).collection(name).doc(docId).set(data,{merge:true});
 }
 
-async function renderDashList(collectionName,containerId,rowFn,emptyText){
-  const el=$(containerId);
-  if(!el)return;
-  el.innerHTML='<div class="dashempty">Loading…</div>';
-  const items=await getUserItems(collectionName);
-  if(!items.length){ el.innerHTML=`<div class="dashempty">${emptyText}</div>`; return; }
-  el.innerHTML=items.map(it=>rowFn(it)).join('');
-}
+/* ---------- Dashboard activity + Research Board ---------- */
+const DASH_RECENT_LIMIT=8;
+const RESEARCH_BOARD_LIMIT=10;
+let dashboardRenderToken=0;
+let selectedResearchIds=new Set();
 
+function dashboardUserName(){
+  const raw=(currentUser && (currentUser.displayName||currentUser.email))||'there';
+  return String(raw).split('@')[0] || 'there';
+}
+function researchKey(name){
+  const s=String(name||'').trim().toLowerCase().replace(/\s+/g,' ');
+  let h=2166136261;
+  for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}
+  return 'r_'+(h>>>0).toString(36)+'_'+s.length;
+}
+function formatDashDate(value){
+  if(!value)return 'Not yet viewed';
+  let ms=null;
+  if(typeof value==='number')ms=value;
+  else if(value && typeof value.toMillis==='function')ms=value.toMillis();
+  else if(value && value.seconds)ms=value.seconds*1000;
+  if(!ms)return 'Not yet viewed';
+  const d=new Date(ms);
+  if(Number.isNaN(d.getTime()))return 'Not yet viewed';
+  const diff=Math.max(0,Date.now()-ms),sec=Math.floor(diff/1000);
+  if(sec<60)return 'Just now';
+  const min=Math.floor(sec/60);if(min<60)return `${min}m ago`;
+  const hr=Math.floor(min/60);if(hr<24)return `${hr}h ago`;
+  const day=Math.floor(hr/24);if(day<7)return `${day}d ago`;
+  return d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:d.getFullYear()===new Date().getFullYear()?undefined:'numeric'});
+}
+function dashPillIcon(){
+  return '<span class="researchIcon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="8" width="18" height="8" rx="4"/><line x1="12" y1="8" x2="12" y2="16"/></svg></span>';
+}
+function setDashMessage(text){
+  const el=$('dashMessage');if(el){el.textContent=text;el.classList.add('show');}
+}
+function clearDashMessage(){
+  const el=$('dashMessage');if(el){el.textContent='';el.classList.remove('show');}
+}
+async function incrementUserMetric(metric){
+  if(!currentUser)return;
+  const db=userDb();if(!db)return;
+  try{
+    await db.collection('users').doc(currentUser.uid).collection('activitySummary').doc('stats').set({
+      [metric]:firebase.firestore.FieldValue.increment(1),
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    },{merge:true});
+  }catch(e){console.warn('PharmaSafe: activity metric write failed:',e.message);}
+}
+function trackActivity(metric){incrementUserMetric(metric);}
+async function recordRecentDrug(name,reportCount){
+  if(!currentUser||!name)return;
+  const db=userDb();if(!db)return;
+  try{
+    const key=researchKey(name);
+    const ref=db.collection('users').doc(currentUser.uid).collection('recentAnalyses').doc(key);
+    const existing=await ref.get();
+    await ref.set({
+      name:String(name).trim(),drugKey:key,
+      reportCount:Number.isFinite(Number(reportCount))?Number(reportCount):null,
+      lastViewedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      ...(existing.exists?{}:{createdAt:firebase.firestore.FieldValue.serverTimestamp()})
+    },{merge:true});
+  }catch(e){console.warn('PharmaSafe: recent analysis write failed:',e.message);}
+}
+async function touchResearchDrug(name,reportCount){
+  if(!currentUser||!name)return;
+  const db=userDb();if(!db)return;
+  try{
+    const key=researchKey(name);
+    const snap=await db.collection('users').doc(currentUser.uid).collection('research').where('drugKey','==',key).limit(1).get();
+    if(!snap.empty){
+      await snap.docs[0].ref.set({
+        name:String(name).trim(),
+        reportCount:Number.isFinite(Number(reportCount))?Number(reportCount):null,
+        lastViewedAt:firebase.firestore.FieldValue.serverTimestamp()
+      },{merge:true});
+    }
+  }catch(e){console.warn('PharmaSafe: research touch failed:',e.message);}
+}
+function recordDrugAnalysis(name,reportCount){
+  if(!currentUser)return;
+  trackActivity('drugsAnalyzed');
+  recordRecentDrug(name,reportCount);
+  touchResearchDrug(name,reportCount);
+  if(currentSection==='dashboard')renderDashboard();
+}
+function recordReportExplored(reportId){if(currentUser&&reportId)trackActivity('reportsExplored');}
+function recordComparison(){if(currentUser)trackActivity('comparisons');}
+function researchItems(){return getUserItems('research',RESEARCH_BOARD_LIMIT);}
+function recentItems(){return getUserItems('recentAnalyses',DASH_RECENT_LIMIT);}
+function statValue(stats,key){
+  const n=Number(stats&&stats[key]);return Number.isFinite(n)&&n>=0?n:0;
+}
+function updateResearchSelectionState(){
+  document.querySelectorAll('#researchList input[data-research-id]').forEach(cb=>{cb.checked=selectedResearchIds.has(cb.dataset.researchId);});
+  const count=selectedResearchIds.size,btn=$('compareSelectedBtn');
+  if(btn){btn.disabled=count!==2;btn.textContent=count===2?'Compare Selected':'Compare Selected (select 2)';}
+  const label=$('researchSelectionNote');if(label)label.textContent=count?`${count} selected`:'Select 2 medicines to compare';
+}
 async function renderDashboard(){
+  const token=++dashboardRenderToken;
   if(!currentUser){
-    $('dashSignedOut').style.display='block';
-    $('dashSignedIn').style.display='none';
-    return;
+    $('dashSignedOut').style.display='block';$('dashSignedIn').style.display='none';return;
   }
-  $('dashSignedOut').style.display='none';
-  $('dashSignedIn').style.display='block';
-  renderDashList('medications','medList',
-    it=>dashRow('medications',it.id,`<b>${esc(it.name)}</b>`,it.dose?esc(it.dose):''),
-    'No medications saved yet.');
-  renderDashList('allergies','allList',
-    it=>dashRow('allergies',it.id,`<b>${esc(it.name)}</b>`,it.reaction?esc(it.reaction):''),
-    'No allergies saved yet.');
-  renderDashList('reminders','remList',
-    it=>dashRow('reminders',it.id,`<b>${esc(it.title)}</b>`,it.note?esc(it.note):''),
-    'No reminders saved yet.');
-  renderDashList('favorites','favList',
-    it=>`<div class="dashrow"><span class="dmain"><b>${esc(it.name)}</b></span><button class="btn ghost" style="margin-right:6px" onclick="dashAnalyzeFavorite('${esc(it.name).replace(/'/g,"\\'")}')">Analyze</button><button class="ddel" title="Remove" onclick="dashDelete('favorites','${it.id}')">&times;</button></div>`,
-    'No favorites saved yet.');
+  $('dashSignedOut').style.display='none';$('dashSignedIn').style.display='block';clearDashMessage();
+  $('dashWelcomeName').textContent=dashboardUserName();
+  ['dashStatDrugs','dashStatReports','dashStatCompare','dashStatExports'].forEach(id=>{if($(id))$(id).textContent='…';});
+  $('recentList').innerHTML='<div class="dashLoading">Loading your recent activity…</div>';
+  $('researchList').innerHTML='<div class="dashLoading">Loading your Research Board…</div>';
+  try{
+    const db=userDb();if(!db)throw new Error('Your account database is not available yet.');
+    const [statsSnap,recent,research]=await Promise.all([
+      db.collection('users').doc(currentUser.uid).collection('activitySummary').doc('stats').get(),
+      recentItems(),researchItems()
+    ]);
+    if(token!==dashboardRenderToken)return;
+    const stats=statsSnap.exists?statsSnap.data():{};
+    $('dashStatDrugs').textContent=statValue(stats,'drugsAnalyzed').toLocaleString();
+    $('dashStatReports').textContent=statValue(stats,'reportsExplored').toLocaleString();
+    $('dashStatCompare').textContent=statValue(stats,'comparisons').toLocaleString();
+    $('dashStatExports').textContent=statValue(stats,'exports').toLocaleString();
+
+    const validIds=new Set(research.map(x=>x.id));
+    selectedResearchIds=new Set([...selectedResearchIds].filter(id=>validIds.has(id)));
+    $('recentList').innerHTML=recent.length?recent.map(it=>`
+      <div class="recentItem">
+        <div class="recentIdentity">${dashPillIcon()}<div><b>${esc(it.name)}</b><span>${formatDashDate(it.lastViewedAt||it.createdAt)}${it.reportCount!=null?` · ${Number(it.reportCount).toLocaleString()} reports at last analysis`:''}</span></div></div>
+        <button class="btn ghost smallBtn" type="button" onclick='dashOpenDrug(${esc(JSON.stringify(it.name))})'>View Analysis</button>
+      </div>`).join(''):`<div class="dashEmptyState"><div class="emptyIcon">${dashPillIcon()}</div><b>No analyses yet</b><span>Search for a medicine to start exploring pharmacovigilance data.</span><button class="btn" type="button" onclick="go('drug')">Explore a Drug</button></div>`;
+
+    $('researchList').innerHTML=research.length?research.map(it=>`
+      <div class="researchItem">
+        <label class="researchSelect" title="Select ${esc(it.name)} for comparison">
+          <input type="checkbox" data-research-id="${esc(it.id)}" onchange="toggleResearchSelection(this)">
+          <span class="checkmark"></span>
+        </label>
+        <div class="researchIdentity">${dashPillIcon()}<div><b>${esc(it.name)}</b><span>${formatDashDate(it.lastViewedAt||it.createdAt)}${it.reportCount!=null?` · ${Number(it.reportCount).toLocaleString()} reports`:''}</span></div></div>
+        <div class="researchActions">
+          <button class="btn ghost smallBtn" type="button" onclick='dashOpenDrug(${esc(JSON.stringify(it.name))})'>View Analysis</button>
+          <button class="removeResearch" type="button" title="Remove from Research Board" aria-label="Remove ${esc(it.name)} from Research Board" onclick="removeResearch('${esc(it.id)}')">Remove</button>
+        </div>
+      </div>`).join(''):`<div class="dashEmptyState researchEmpty"><div class="emptyIcon">${dashPillIcon()}</div><b>Your Research Board is empty</b><span>Add medicines while exploring PharmaSafe to build your personal research collection.</span><button class="btn" type="button" onclick="go('drug')">Explore a Drug</button></div>`;
+    updateResearchSelectionState();
+  }catch(e){
+    if(token!==dashboardRenderToken)return;
+    ['dashStatDrugs','dashStatReports','dashStatCompare','dashStatExports'].forEach(id=>{if($(id))$(id).textContent='0';});
+    $('recentList').innerHTML='<div class="dashError">We could not load your activity right now. Your existing PharmaSafe tools are still available.</div>';
+    $('researchList').innerHTML='<div class="dashError">We could not load your Research Board right now. Please try again.</div>';
+    setDashMessage(e.message||'Dashboard data could not be loaded.');
+  }
+}
+function dashOpenDrug(name){go('drug');$('drugName').value=name;drugSearch();}
+function toggleResearchSelection(cb){
+  const id=cb.dataset.researchId;
+  if(cb.checked)selectedResearchIds.add(id);else selectedResearchIds.delete(id);
+  updateResearchSelectionState();
+}
+async function addToResearch(name,reportCount){
+  if(!currentUser){showAuthPrompt();return;}
+  const clean=String(name||'').trim();if(!clean)return;
+  clearDashMessage();
+  try{
+    const items=await researchItems(),key=researchKey(clean),existing=items.find(it=>it.drugKey===key);
+    if(existing){
+      selectedResearchIds.add(existing.id);
+      await updateUserItem('research',existing.id,{
+        name:clean,lastViewedAt:firebase.firestore.FieldValue.serverTimestamp(),
+        reportCount:Number.isFinite(Number(reportCount))?Number(reportCount):existing.reportCount??null
+      });
+      setDashMessage(`${clean} is already on your Research Board.`);
+    }else{
+      if(items.length>=RESEARCH_BOARD_LIMIT){
+        setDashMessage(`Your Research Board can hold up to ${RESEARCH_BOARD_LIMIT} active medicines. Remove one before adding another.`);
+        return;
+      }
+      const id=await addUserItem('research',{
+        name:clean,drugKey:key,
+        reportCount:Number.isFinite(Number(reportCount))?Number(reportCount):null,
+        lastViewedAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+      selectedResearchIds.add(id);
+      setDashMessage(`${clean} was added to your Research Board.`);
+    }
+    updateResearchButton(clean);
+    if(currentSection==='dashboard')renderDashboard();
+  }catch(e){
+    setDashMessage('Could not update your Research Board. Please try again.');
+    console.error('PharmaSafe: research add failed:',e);
+  }
+}
+async function removeResearch(id){
+  try{await deleteUserItem('research',id);selectedResearchIds.delete(id);if(currentSection==='dashboard')renderDashboard();}
+  catch(e){setDashMessage('Could not remove that medicine. Please try again.');console.error('PharmaSafe: research remove failed:',e);}
+}
+async function updateResearchButton(name){
+  const btn=$('researchDrugBtn');if(!btn)return;
+  if(!currentUser){btn.textContent='+ Add to Research';btn.disabled=false;return;}
+  try{
+    const key=researchKey(name),items=await researchItems(),existing=items.find(it=>it.drugKey===key);
+    btn.textContent=existing?'✓ In Research':'+ Add to Research';
+    btn.dataset.inResearch=existing?'1':'0';btn.disabled=false;
+  }catch(e){btn.textContent='+ Add to Research';btn.disabled=false;}
+}
+function addCurrentDrugToResearch(){
+  const btn=$('researchDrugBtn');if(!btn)return;
+  addToResearch(btn.dataset.drugName,Number(btn.dataset.reportCount||NaN));
+}
+async function dashCompareSelected(){
+  const ids=[...selectedResearchIds];
+  if(ids.length!==2){setDashMessage('Select exactly 2 medicines to use PharmaSafe’s existing comparison tool.');return;}
+  try{
+    const items=await researchItems(),byId=new Map(items.map(x=>[x.id,x])),chosen=ids.map(id=>byId.get(id)).filter(Boolean);
+    if(chosen.length!==2){setDashMessage('The selected medicines are no longer available. Refresh the dashboard and try again.');return;}
+    $('cmpA').value=chosen[0].name;$('cmpB').value=chosen[1].name;go('compare');compareDrugs();
+  }catch(e){setDashMessage('Could not open comparison. Please try again.');}
 }
 
-async function dashDelete(collectionName,id){
-  try{ await deleteUserItem(collectionName,id); renderDashboard(); }
-  catch(e){ console.error('PharmaSafe: could not remove item:',e); }
-}
-
-function dashAnalyzeFavorite(name){
-  go('drug');
-  $('drugName').value=name;
-  drugSearch();
-}
-
-async function dashAddMedication(e){
-  e.preventDefault();
-  const name=$('medName').value.trim(), dose=$('medDose').value.trim();
-  if(!name)return false;
-  await addUserItem('medications',{name,dose:dose||null});
-  $('medName').value='';$('medDose').value='';
-  renderDashboard();
-  return false;
-}
-async function dashAddAllergy(e){
-  e.preventDefault();
-  const name=$('allName').value.trim(), reaction=$('allReaction').value.trim();
-  if(!name)return false;
-  await addUserItem('allergies',{name,reaction:reaction||null});
-  $('allName').value='';$('allReaction').value='';
-  renderDashboard();
-  return false;
-}
-async function dashAddReminder(e){
-  e.preventDefault();
-  const title=$('remTitle').value.trim(), note=$('remNote').value.trim();
-  if(!title)return false;
-  await addUserItem('reminders',{title,note:note||null});
-  $('remTitle').value='';$('remNote').value='';
-  renderDashboard();
-  return false;
-}
-async function dashAddFavorite(e){
-  e.preventDefault();
-  const name=$('favName').value.trim();
-  if(!name)return false;
-  await addUserItem('favorites',{name});
-  $('favName').value='';
-  renderDashboard();
-  return false;
-}
-
+/* Existing Favorites remain separate from the Research Board. */
 function switchAuthTab(tab){
   $('tabLogin').classList.toggle('active',tab==='login');
   $('tabSignup').classList.toggle('active',tab==='signup');
@@ -1951,7 +2086,7 @@ function showAuthPrompt(reason){
   const m=$('authModal');
   $('authModalSub').textContent=reason==='nudge'
     ? "You've tried a couple of tools — sign in to save your work, or keep browsing without an account."
-    : 'FAERS / AEMS Analytics — academic prototype';
+    : 'FAERS / AEMS Analytics — Pharmacovigilance Analytics Platform';
   m.style.display='flex';
   requestAnimationFrame(()=>m.classList.add('show'));
 }
@@ -2084,6 +2219,7 @@ function enterApp(user){
   $('loginLink').style.display='none';
   ensureUserProfile(user); // fire-and-forget: never blocks the UI on a Firestore round-trip
   if(currentSection==='dashboard')renderDashboard();
+  if(currentSection==='drug' && $('researchDrugBtn'))updateResearchButton($('researchDrugBtn').dataset.drugName);
 }
 
 function initApp(){

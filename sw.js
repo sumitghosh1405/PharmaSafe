@@ -1,13 +1,21 @@
-// v4: added Firebase App Check integration; cache version bumped so deployed clients refresh — v1 used cache-first for index.html
-// itself, so once installed, an updated site never reached devices that
-// already had the app cached (installed home-screen icon included) until
-// this file's own bytes changed enough for the browser to notice. Two
-// fixes: (1) the HTML document now uses network-first, so any online open
-// always gets the current deployed version, falling back to cache only
-// when genuinely offline; (2) the cache name below is versioned, so this
-// deployment itself forces every existing install to detect, install, and
-// activate this new worker immediately instead of silently keeping v1.
-const CACHE = 'pharmasafe-shell-v4';
+// v1 used cache-first for index.html itself, so once installed, an updated
+// site never reached devices that already had the app cached (installed
+// home-screen icon included) until this file's own bytes changed enough
+// for the browser to notice. Two fixes: (1) the HTML document now uses
+// network-first, so any online open always gets the current deployed
+// version, falling back to cache only when genuinely offline; (2) the
+// cache name below is versioned, so bumping it on every deployment forces
+// every existing install to detect, install, and activate the new worker
+// immediately instead of silently keeping the old one.
+//
+// HOW TO USE: every time you push a change to the site, bump the number
+// in CACHE below (v5 -> v6 -> v7 ...) and bump the matching ?v= query
+// string on the <script src="app.js?v=..."> tag in index.html to the same
+// number. That one-line change is what tells both the service worker and
+// the browser's own HTTP cache that this is a new version, so visitors —
+// including anyone with the app already installed to their home screen —
+// get the current version instead of an old cached one.
+const CACHE = 'pharmasafe-shell-v6';
 const SHELL = [
   './manifest.json',
   './icons/icon-192.png',

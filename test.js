@@ -1686,7 +1686,7 @@ function showAuthPrompt(reason){
   const m=$('authModal');
   $('authModalSub').textContent=reason==='nudge'
     ? "You've tried a couple of tools — sign in to save your work, or keep browsing without an account."
-    : 'FAERS / AEMS Analytics — academic prototype';
+    : 'FAERS / AEMS Analytics — Pharmacovigilance Analytics Platform';
   m.style.display='flex';
   requestAnimationFrame(()=>m.classList.add('show'));
 }
