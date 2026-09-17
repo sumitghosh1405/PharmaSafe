@@ -15,7 +15,7 @@
 // the browser's own HTTP cache that this is a new version, so visitors —
 // including anyone with the app already installed to their home screen —
 // get the current version instead of an old cached one.
-const CACHE = 'pharmasafe-shell-v6';
+const CACHE = 'pharmasafe-shell-v7';
 const SHELL = [
   './manifest.json',
   './icons/icon-192.png',

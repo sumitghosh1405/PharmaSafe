@@ -881,7 +881,8 @@ async function drugSearch(silent){
           ['Limitations',FAERS_LIMITATIONS_HTML]
         ])}
         <div class="actions">
-          <button class="btn researchDrugBtn" id="researchDrugBtn" type="button" data-drug-name="${esc(displayName)}" data-report-count="${reports}" onclick="addCurrentDrugToResearch()">+ Add to Research</button>
+          <button class="btn researchDrugBtn" id="researchDrugBtn" type="button" data-drug-name="${esc(displayName)}" data-report-count="${reports}" onclick="addCurrentDrugToResearch(this)">+ Add to Research</button>
+          <span id="researchDrugStatus" class="note" role="status" aria-live="polite"></span>
           <button class="btn ghost" type="button" onclick='trackedExport("exportDrugCSV",this)'>Export CSV</button>
           ${exportButton('Export PDF','exportDrugPDF')}
           <button class="btn ghost" type="button" onclick="go('outcomes');$('outDrug').value=${esc(JSON.stringify(displayName))};outcomes()">Outcome severity →</button>
@@ -2006,38 +2007,45 @@ function toggleResearchSelection(cb){
   if(cb.checked)selectedResearchIds.add(id);else selectedResearchIds.delete(id);
   updateResearchSelectionState();
 }
-async function addToResearch(name,reportCount){
-  if(!currentUser){showAuthPrompt();return;}
-  const clean=String(name||'').trim();if(!clean)return;
+async function addToResearch(name,reportCount,sourceBtn){
+  if(!currentUser){showAuthPrompt();throw new Error('Sign in required.');}
+  const clean=String(name||'').trim();if(!clean)throw new Error('No medicine was selected.');
   clearDashMessage();
-  try{
-    const items=await researchItems(),key=researchKey(clean),existing=items.find(it=>it.drugKey===key);
-    if(existing){
-      selectedResearchIds.add(existing.id);
-      await updateUserItem('research',existing.id,{
-        name:clean,lastViewedAt:firebase.firestore.FieldValue.serverTimestamp(),
-        reportCount:Number.isFinite(Number(reportCount))?Number(reportCount):existing.reportCount??null
-      });
-      setDashMessage(`${clean} is already on your Research Board.`);
-    }else{
-      if(items.length>=RESEARCH_BOARD_LIMIT){
-        setDashMessage(`Your Research Board can hold up to ${RESEARCH_BOARD_LIMIT} active medicines. Remove one before adding another.`);
-        return;
-      }
-      const id=await addUserItem('research',{
-        name:clean,drugKey:key,
-        reportCount:Number.isFinite(Number(reportCount))?Number(reportCount):null,
-        lastViewedAt:firebase.firestore.FieldValue.serverTimestamp()
-      });
-      selectedResearchIds.add(id);
-      setDashMessage(`${clean} was added to your Research Board.`);
+  const db=userDb();
+  if(!db)throw new Error('Your account database is not available yet. Please try again.');
+  const key=researchKey(clean);
+  // Use a direct, non-swallowing read here. The dashboard renderer intentionally
+  // tolerates read failures, but an Add action must surface the real Firestore
+  // error instead of silently behaving as though the board were empty.
+  const snap=await db.collection('users').doc(currentUser.uid).collection('research')
+    .where('drugKey','==',key).limit(1).get();
+  const existing=snap.empty?null:{id:snap.docs[0].id,...snap.docs[0].data()};
+  if(existing){
+    selectedResearchIds.add(existing.id);
+    await updateUserItem('research',existing.id,{
+      name:clean,lastViewedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      reportCount:Number.isFinite(Number(reportCount))?Number(reportCount):(existing.reportCount??null)
+    });
+    setDashMessage(`${clean} is already on your Research Board.`);
+  }else{
+    // Count the active board items without depending on an orderBy index.
+    const allSnap=await db.collection('users').doc(currentUser.uid).collection('research').get();
+    if(allSnap.size>=RESEARCH_BOARD_LIMIT){
+      const msg=`Your Research Board can hold up to ${RESEARCH_BOARD_LIMIT} active medicines. Remove one before adding another.`;
+      setDashMessage(msg);
+      throw new Error(msg);
     }
-    updateResearchButton(clean);
-    if(currentSection==='dashboard')renderDashboard();
-  }catch(e){
-    setDashMessage('Could not update your Research Board. Please try again.');
-    console.error('PharmaSafe: research add failed:',e);
+    const id=await addUserItem('research',{
+      name:clean,drugKey:key,
+      reportCount:Number.isFinite(Number(reportCount))?Number(reportCount):null,
+      lastViewedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    selectedResearchIds.add(id);
+    setDashMessage(`${clean} was added to your Research Board.`);
   }
+  if(sourceBtn)sourceBtn.dataset.inResearch='1';
+  await updateResearchButton(clean);
+  if(currentSection==='dashboard')await renderDashboard();
 }
 async function removeResearch(id){
   try{await deleteUserItem('research',id);selectedResearchIds.delete(id);if(currentSection==='dashboard')renderDashboard();}
@@ -2052,9 +2060,37 @@ async function updateResearchButton(name){
     btn.dataset.inResearch=existing?'1':'0';btn.disabled=false;
   }catch(e){btn.textContent='+ Add to Research';btn.disabled=false;}
 }
-function addCurrentDrugToResearch(){
-  const btn=$('researchDrugBtn');if(!btn)return;
-  addToResearch(btn.dataset.drugName,Number(btn.dataset.reportCount||NaN));
+async function addCurrentDrugToResearch(btn){
+  btn=btn||$('researchDrugBtn');
+  if(!btn)return;
+  const status=$('researchDrugStatus');
+  if(btn.dataset.busy==='1')return;
+  const name=String(btn.dataset.drugName||'').trim();
+  const reportCount=Number(btn.dataset.reportCount||NaN);
+  if(!name)return;
+  if(!currentUser){
+    if(status){status.textContent='Please sign in to save medicines to your Research Board.';status.classList.add('show');}
+    showAuthPrompt();
+    return;
+  }
+  btn.dataset.busy='1';
+  btn.disabled=true;
+  btn.setAttribute('aria-busy','true');
+  const oldText=btn.textContent;
+  btn.textContent='Adding…';
+  if(status){status.textContent='Saving to your Research Board…';status.classList.add('show');}
+  try{
+    await addToResearch(name,reportCount,btn);
+    if(status){status.textContent=`${name} is now in your Research Board.`;status.classList.add('show');}
+  }catch(e){
+    if(status){status.textContent=e?.message||'Could not add this medicine to your Research Board. Please try again.';status.classList.add('show');}
+    console.error('PharmaSafe: research add failed:',e);
+  }finally{
+    btn.dataset.busy='0';
+    btn.removeAttribute('aria-busy');
+    btn.disabled=false;
+    if(btn.textContent==='Adding…')btn.textContent=oldText;
+  }
 }
 async function dashCompareSelected(){
   const ids=[...selectedResearchIds];
