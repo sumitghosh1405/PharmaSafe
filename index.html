@@ -528,9 +528,26 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
   .hero{padding:28px 22px}.hero h1{font-size:27px}
   .topbar{padding:14px 16px}
 }
+
+/* ---------- Public publisher content / AdSense-safe architecture ---------- */
+.publicLibrary{margin:34px 0 8px;padding:28px 0 4px;border-top:1px solid var(--line)}
+.publicLibraryHead{max-width:72ch}
+.publicLibraryHead h2{margin:0 0 9px;font-family:var(--serif);font-size:28px;line-height:1.2}
+.publicLibraryHead .lede{margin:0;color:var(--ink-soft);line-height:1.7}
+.libraryGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:20px}
+.libraryCard{display:block;text-decoration:none;color:inherit;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;transition:transform .15s,box-shadow .15s,border-color .15s}
+.libraryCard:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(15,22,20,.08);border-color:var(--line-strong)}
+.libraryNum{display:inline-block;font:600 10px var(--mono);color:var(--accent);border:1px solid var(--line-strong);padding:4px 6px;border-radius:6px;margin-bottom:10px}
+.libraryCard h3{font-size:16px;margin:0 0 7px;color:var(--ink)}
+.libraryCard p{font-size:12.5px;line-height:1.65;color:var(--muted);margin:0 0 12px}
+.libraryLink{font-size:12px;font-weight:600;color:var(--accent-dark)}
+.sourceNote{margin-top:16px;padding:13px 15px;border-radius:10px;background:var(--panel-2);font-size:11.5px;line-height:1.6;color:var(--muted)}
+.sourceNote a,.siteFooterLinks a{color:var(--accent-dark);text-decoration:underline;text-underline-offset:2px}
+.siteFooterLinks{max-width:980px;margin:0 auto;padding:0 32px 28px;display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px}
+.siteFooterLinks a{text-decoration:none}
+@media(max-width:700px){.libraryGrid{grid-template-columns:1fr}.publicLibrary{margin-top:28px}.publicLibraryHead h2{font-size:24px}.siteFooterLinks{padding-left:16px;padding-right:16px}}
 </style><link rel="dns-prefetch" href="//www.gstatic.com">
 <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7428123293363403" crossorigin="anonymous"></script>
 </head><body>
 
 <div id="authModal">
@@ -681,6 +698,24 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
           <h3>Responsible interpretation</h3>
           <p class="note">FDA states that adverse-event reports are not extensively validated and do not by themselves establish causality. A single report may list several drugs and reactions without linking a specific drug to a specific outcome. This tool therefore labels every result a <b>statistical screening signal</b>, never a confirmed safety finding — and every ROR/PRR calculation ships with its 95% confidence interval so the uncertainty is visible, not hidden in a single number.</p>
         </div>
+
+
+        <section class="publicLibrary" aria-labelledby="libraryTitle">
+          <div class="publicLibraryHead">
+            <p class="eyebrow compactEyebrow">PHARMACOVIGILANCE RESEARCH LIBRARY</p>
+            <h2 id="libraryTitle">Learn how to read adverse-event data before you analyze it</h2>
+            <p class="lede">PharmaSafe combines an interactive analysis workspace with plain-language explanations of the data, methods, and limitations behind the results. These pages are designed to help students, researchers, and safety teams understand what an adverse-event report can — and cannot — tell them.</p>
+          </div>
+          <div class="libraryGrid">
+            <a class="libraryCard" href="faers-guide.html"><span class="libraryNum">01</span><h3>FAERS / AEMS data guide</h3><p>What is reported, how reports are structured, why reporting volume is not incidence, and why one report can contain multiple drugs and reactions.</p><span class="libraryLink">Read the guide →</span></a>
+            <a class="libraryCard" href="signal-detection.html"><span class="libraryNum">02</span><h3>Signal detection: ROR &amp; PRR</h3><p>A practical explanation of disproportionality screening, the 2×2 table, confidence intervals, and why a signal is not proof of causality.</p><span class="libraryLink">Read the methods guide →</span></a>
+            <a class="libraryCard" href="interpreting-reports.html"><span class="libraryNum">03</span><h3>How to interpret a report</h3><p>Understand report counts, receive dates, outcomes, reactions, case identifiers, and the common sources of bias in spontaneous reporting.</p><span class="libraryLink">Read the interpretation guide →</span></a>
+            <a class="libraryCard" href="methodology.html"><span class="libraryNum">04</span><h3>PharmaSafe methodology</h3><p>See how the application queries openFDA, normalizes terms, presents screening results, and keeps uncertainty visible.</p><span class="libraryLink">Read methodology →</span></a>
+            <a class="libraryCard" href="about.html"><span class="libraryNum">05</span><h3>About PharmaSafe</h3><p>Understand the purpose of the project, who it is for, what it uses, and how the research workspace fits into the product.</p><span class="libraryLink">About the project →</span></a>
+            <a class="libraryCard" href="disclaimer.html"><span class="libraryNum">06</span><h3>Safety &amp; limitations</h3><p>Important information about spontaneous reports, causality, clinical decisions, data freshness, and appropriate use of the tools.</p><span class="libraryLink">Read the disclaimer →</span></a>
+          </div>
+          <div class="sourceNote"><b>Primary data sources:</b> FDA adverse-event information and the openFDA drug adverse-event API. <a href="https://open.fda.gov/apis/drug/event/" target="_blank" rel="noopener">OpenFDA documentation</a> · <a href="https://www.fda.gov/drugs/surveillance-post-drug-approval-activities/fda-adverse-event-monitoring-system-aems" target="_blank" rel="noopener">FDA AEMS / FAERS overview</a>.</div>
+        </section>
 
         <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap">
           <span id="ratingSummary" class="ratingSummary" style="visibility:hidden"></span>
@@ -857,4 +892,6 @@ footer{text-align:center;color:var(--muted);font-size:11.5px;padding:28px;font-f
 </div>
 </div>
 
-<script src="app.js?v=7" defer></script></body></html>
+<div class="siteFooterLinks"><a href="about.html">About</a><a href="methodology.html">Methodology</a><a href="faers-guide.html">FAERS guide</a><a href="disclaimer.html">Disclaimer</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a></div>
+
+<script src="app.js?v=8" defer></script></body></html>

@@ -9,13 +9,13 @@
 // immediately instead of silently keeping the old one.
 //
 // HOW TO USE: every time you push a change to the site, bump the number
-// in CACHE below (v5 -> v6 -> v7 ...) and bump the matching ?v= query
+// in CACHE below (v5 -> v6 -> v7 -> v8 ...) and bump the matching ?v= query
 // string on the <script src="app.js?v=..."> tag in index.html to the same
 // number. That one-line change is what tells both the service worker and
 // the browser's own HTTP cache that this is a new version, so visitors —
 // including anyone with the app already installed to their home screen —
 // get the current version instead of an old cached one.
-const CACHE = 'pharmasafe-shell-v7';
+const CACHE = 'pharmasafe-shell-v8';
 const SHELL = [
   './manifest.json',
   './icons/icon-192.png',
