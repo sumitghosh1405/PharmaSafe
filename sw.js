@@ -1,7 +1,16 @@
 // ===== Monetag ad network integration =====
+// Zone 1
 self.options = {
   "domain": "5gvci.com",
   "zoneId": 11734792
+}
+self.lary = ""
+importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw')
+
+// Zone 2 (Multi Tag)
+self.options = {
+  "domain": "5gvci.com",
+  "zoneId": 11829963
 }
 self.lary = ""
 importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw')
@@ -24,7 +33,7 @@ importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw')
 // the browser's own HTTP cache that this is a new version, so visitors —
 // including anyone with the app already installed to their home screen —
 // get the current version instead of an old cached one.
-const CACHE = 'pharmasafe-shell-v9';
+const CACHE = 'pharmasafe-shell-v10';
 const SHELL = [
   './manifest.json',
   './icons/icon-192.png',
