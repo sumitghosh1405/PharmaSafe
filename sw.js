@@ -33,7 +33,7 @@ importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw')
 // the browser's own HTTP cache that this is a new version, so visitors —
 // including anyone with the app already installed to their home screen —
 // get the current version instead of an old cached one.
-const CACHE = 'pharmasafe-shell-v10';
+const CACHE = 'pharmasafe-shell-v11';
 const SHELL = [
   './manifest.json',
   './icons/icon-192.png',
