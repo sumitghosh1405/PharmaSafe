@@ -895,7 +895,8 @@ async function drugSearch(silent){
       sexChart=new Chart($('sexChart'),{type:'bar',data:{labels:sexData.map(s=>s.label),datasets:[{data:sexData.map(s=>s.count),backgroundColor:['#2563eb','#db2777','#94a3b8'],borderRadius:4}]},
         options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw.toLocaleString()} reports`}}},scales:{x:{beginAtZero:true,grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},y:{grid:{display:false},ticks:{autoSkip:false}}}}});
       state.drug={loaded:true,name:n};
-      if(!silent){recordDrugAnalysis(displayName,reports);updateResearchButton(displayName);}
+      if(!silent)recordDrugAnalysis(displayName,reports);
+      updateResearchButton(displayName); // also on auto-refresh, so a re-rendered button keeps its "✓ In Research" state
       if(silent)flashUpdated('drugOut');
     }catch(e){
       if(silent)console.warn('auto-refresh (drug) failed:',e.message);
@@ -1328,7 +1329,7 @@ function getRatingsDb(){
   if(ratingsDbTried)return ratingsDb;
   ratingsDbTried=true;
   try{
-    if(typeof firebaseReady!=='undefined' && firebaseReady)ratingsDb=firebase.firestore();
+    if(typeof firebaseReady!=='undefined' && firebaseReady){ensureAppCheck();ratingsDb=firebase.firestore();}
   }catch(e){ ratingsDb=null; }
   return ratingsDb;
 }
@@ -1760,28 +1761,37 @@ const firebaseReady = FIREBASE_CONFIG.apiKey!=='YOUR_API_KEY' && window.firebase
 if(firebaseReady){
   firebase.initializeApp(FIREBASE_CONFIG);
 
-  // Firebase App Check — reCAPTCHA Enterprise.
-  // The site key is public by design; domain verification is enforced by Google Cloud.
-  // Activation (not initializeApp itself) is deferred until just after the
-  // page's first paint — reCAPTCHA Enterprise's own script/network cost is
-  // real and otherwise competes with initial render for bandwidth/CPU.
-  // Nothing about App Check's protection is skipped or weakened by this —
-  // it still activates on every load, just a beat later, well before any
-  // login or Firestore write a user could actually trigger.
-  const RECAPTCHA_ENTERPRISE_SITE_KEY="6Le3H5gtAAAAAFP401ud8f0fuN962yu8fBPzWW7";
-  const activateAppCheck=()=>{
-    if(firebase.appCheck){
-      try{
-        firebase.appCheck().activate(RECAPTCHA_ENTERPRISE_SITE_KEY, true);
-      }catch(e){
-        console.warn('Firebase App Check could not be initialized:', e);
-      }
-    }
-  };
+  // Firebase App Check — reCAPTCHA Enterprise (see ensureAppCheck below).
+  // Anonymous visitors: activated just after first paint (keeps reCAPTCHA off the
+  // critical render path). Signed-in users / any Firestore use: activated
+  // immediately beforehand, so no request is ever sent without a token.
   if(document.readyState==='complete'){
-    setTimeout(activateAppCheck,0);
+    setTimeout(ensureAppCheck,0);
   }else{
-    window.addEventListener('load',()=>setTimeout(activateAppCheck,0),{once:true});
+    window.addEventListener('load',()=>setTimeout(ensureAppCheck,0),{once:true});
+  }
+}
+
+/* App Check, reCAPTCHA Enterprise.
+   The site key is public by design; domain verification is enforced by Google Cloud.
+   IMPORTANT: in the Firebase compat SDK, activate('<string>') ALWAYS builds a
+   reCAPTCHA *v3* provider. This project's key is an *Enterprise* key, so it must be
+   passed as a ReCaptchaEnterpriseProvider — otherwise no valid App Check token is ever
+   produced and, once enforcement is on, every Firestore request is rejected with
+   "Missing or insufficient permissions". */
+const RECAPTCHA_ENTERPRISE_SITE_KEY="6Le3H5gtAAAAAFP401ud8f0fuN962yu8fBPzWW7";
+let appCheckStarted=false;
+function ensureAppCheck(){
+  if(appCheckStarted||!firebaseReady||!firebase.appCheck)return;
+  appCheckStarted=true;
+  try{
+    const AC=firebase.appCheck;
+    const provider=typeof AC.ReCaptchaEnterpriseProvider==='function'
+      ? new AC.ReCaptchaEnterpriseProvider(RECAPTCHA_ENTERPRISE_SITE_KEY)
+      : RECAPTCHA_ENTERPRISE_SITE_KEY; // very old SDK without the class: previous behaviour
+    firebase.appCheck().activate(provider,true);
+  }catch(e){
+    console.warn('Firebase App Check could not be initialized:',e);
   }
 }
 
@@ -1808,7 +1818,8 @@ async function ensureUserProfile(user){
         lastLoginAt:firebase.firestore.FieldValue.serverTimestamp()
       },{merge:true});
     }
-  }catch(e){ console.error('PharmaSafe: could not create/update user profile:',e); }
+    noteCloud(true);
+  }catch(e){ noteCloud(false,e); }
 }
 async function getUserProfile(){
   const db=userDb();
@@ -1888,66 +1899,285 @@ function setDashMessage(text){
 function clearDashMessage(){
   const el=$('dashMessage');if(el){el.textContent='';el.classList.remove('show');}
 }
+/* ---------- Resilient personal-data store ----------
+   Everything the dashboard shows (Research Board, recent analyses, activity
+   counters) is written to Firestore first. If Firestore rejects or can't be
+   reached — rules not yet published, App Check not yet verified, offline —
+   the data is kept in this browser instead, the UI keeps working, and the
+   device copy is pushed to the account automatically the next time the cloud
+   is reachable. Nothing here ever throws into the UI. */
+const LOCAL_NS='pharmasafe_personal_v1';
+const CLOUD_TIMEOUT_MS=8000;
+const STAT_KEYS=['drugsAnalyzed','reportsExplored','comparisons','exports'];
+const memStore={};
+const cloudState={ok:null,code:'',warned:{}};
+let statsSyncing=false;
+
+function noteCloud(ok,err){
+  cloudState.ok=!!ok;
+  if(ok){cloudState.code='';return;}
+  const code=String((err&&(err.code||err.message))||'unknown');
+  cloudState.code=code;
+  if(!cloudState.warned[code]){
+    cloudState.warned[code]=true;
+    console.warn('PharmaSafe: cloud sync unavailable ('+code+'). Your data is being kept on this device and will sync automatically when the cloud is reachable.',err);
+  }
+}
+function localKey(name){return LOCAL_NS+':'+(currentUser?currentUser.uid:'anon')+':'+name;}
+function localGet(name,fallback){
+  const k=localKey(name);
+  try{
+    const raw=localStorage.getItem(k);
+    if(raw!=null){const v=JSON.parse(raw);if(v!=null)return v;}
+  }catch(e){/* storage blocked or corrupt — fall through to memory copy */}
+  return Object.prototype.hasOwnProperty.call(memStore,k)?memStore[k]:fallback;
+}
+function localSet(name,value){
+  const k=localKey(name);
+  memStore[k]=value;
+  try{localStorage.setItem(k,JSON.stringify(value));}catch(e){/* private mode / quota — memory copy still works this session */}
+}
+function userCol(name){
+  const db=userDb();
+  if(!db||!currentUser)throw Object.assign(new Error('Your account database is not available yet.'),{code:'unavailable'});
+  return db.collection('users').doc(currentUser.uid).collection(name);
+}
+function withTimeout(promise,ms){
+  return new Promise((resolve,reject)=>{
+    const t=setTimeout(()=>reject(Object.assign(new Error('The request timed out.'),{code:'deadline-exceeded'})),ms);
+    Promise.resolve(promise).then(v=>{clearTimeout(t);resolve(v);},e=>{clearTimeout(t);reject(e);});
+  });
+}
+function serverTs(){return firebase.firestore.FieldValue.serverTimestamp();}
+function tsFromMs(ms){return firebase.firestore.Timestamp.fromMillis(ms);}
+function cleanCount(v){
+  if(v==null||v==='')return null;
+  const n=Number(v);return Number.isFinite(n)&&n>=0?n:null;
+}
+function tsMs(v){
+  if(!v)return 0;
+  if(typeof v==='number')return Number.isFinite(v)?v:0;
+  if(typeof v.toMillis==='function'){try{return v.toMillis();}catch(e){return 0;}}
+  if(typeof v.seconds==='number')return v.seconds*1000;
+  return 0;
+}
+function statValue(stats,key){
+  const n=Number(stats&&stats[key]);return Number.isFinite(n)&&n>=0?n:0;
+}
+function cleanName(name){return String(name==null?'':name).trim().replace(/\s+/g,' ');}
+
+/* ----- activity counters ----- */
 async function incrementUserMetric(metric){
   if(!currentUser)return;
-  const db=userDb();if(!db)return;
+  const uid=currentUser.uid;
   try{
-    await db.collection('users').doc(currentUser.uid).collection('activitySummary').doc('stats').set({
+    await userCol('activitySummary').doc('stats').set({
       [metric]:firebase.firestore.FieldValue.increment(1),
-      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+      updatedAt:serverTs()
     },{merge:true});
-  }catch(e){console.warn('PharmaSafe: activity metric write failed:',e.message);}
+    noteCloud(true);
+  }catch(e){
+    noteCloud(false,e);
+    if(currentUser&&currentUser.uid===uid){
+      const s=localGet('stats',{});
+      s[metric]=statValue(s,metric)+1;
+      localSet('stats',s);
+    }
+  }
 }
 function trackActivity(metric){incrementUserMetric(metric);}
-async function recordRecentDrug(name,reportCount){
-  if(!currentUser||!name)return;
-  const db=userDb();if(!db)return;
+async function loadStats(){
+  let cloud={},ok=false;
   try{
-    const key=researchKey(name);
-    const ref=db.collection('users').doc(currentUser.uid).collection('recentAnalyses').doc(key);
-    const existing=await ref.get();
-    await ref.set({
-      name:String(name).trim(),drugKey:key,
-      reportCount:Number.isFinite(Number(reportCount))?Number(reportCount):null,
-      lastViewedAt:firebase.firestore.FieldValue.serverTimestamp(),
-      ...(existing.exists?{}:{createdAt:firebase.firestore.FieldValue.serverTimestamp()})
-    },{merge:true});
-  }catch(e){console.warn('PharmaSafe: recent analysis write failed:',e.message);}
+    const snap=await withTimeout(userCol('activitySummary').doc('stats').get(),CLOUD_TIMEOUT_MS);
+    cloud=snap.exists?(snap.data()||{}):{};ok=true;noteCloud(true);
+  }catch(e){noteCloud(false,e);}
+  const pending=localGet('stats',{});
+  const totals={};
+  STAT_KEYS.forEach(k=>{totals[k]=statValue(cloud,k)+statValue(pending,k);});
+  if(ok&&!statsSyncing){
+    const patch={};let any=false;
+    STAT_KEYS.forEach(k=>{const n=statValue(pending,k);if(n>0){patch[k]=firebase.firestore.FieldValue.increment(n);any=true;}});
+    if(any){
+      statsSyncing=true;
+      try{
+        await withTimeout(userCol('activitySummary').doc('stats').set({...patch,updatedAt:serverTs()},{merge:true}),CLOUD_TIMEOUT_MS);
+        const cur=localGet('stats',{});
+        STAT_KEYS.forEach(k=>{cur[k]=Math.max(0,statValue(cur,k)-statValue(pending,k));});
+        localSet('stats',cur);
+      }catch(e){noteCloud(false,e);}
+      finally{statsSyncing=false;}
+    }
+  }
+  return totals;
+}
+
+/* ----- recently analysed medicines ----- */
+function localRecent(){
+  const a=localGet('recent',[]);
+  return (Array.isArray(a)?a:[]).filter(it=>it&&it.name&&it.drugKey)
+    .map(it=>({name:String(it.name),drugKey:String(it.drugKey),reportCount:cleanCount(it.reportCount),lastViewedAt:Number(it.lastViewedAt)||0}));
+}
+function saveLocalRecent(list){localSet('recent',list.slice(0,30));}
+async function recordRecentDrug(name,reportCount){
+  const clean=cleanName(name);
+  if(!currentUser||!clean)return;
+  const uid=currentUser.uid,key=researchKey(clean),count=cleanCount(reportCount);
+  try{
+    await userCol('recentAnalyses').doc(key).set({name:clean,drugKey:key,reportCount:count,lastViewedAt:serverTs()},{merge:true});
+    noteCloud(true);
+  }catch(e){
+    noteCloud(false,e);
+    if(currentUser&&currentUser.uid===uid){
+      const list=localRecent().filter(it=>it.drugKey!==key);
+      list.unshift({name:clean,drugKey:key,reportCount:count,lastViewedAt:Date.now()});
+      saveLocalRecent(list);
+    }
+  }
+}
+async function syncLocalRecent(local){
+  const done=new Set();
+  for(const it of local){
+    try{
+      await withTimeout(userCol('recentAnalyses').doc(it.drugKey).set({
+        name:it.name,drugKey:it.drugKey,reportCount:it.reportCount,lastViewedAt:tsFromMs(it.lastViewedAt||Date.now())
+      },{merge:true}),CLOUD_TIMEOUT_MS);
+      done.add(it.drugKey);
+    }catch(e){noteCloud(false,e);break;}
+  }
+  if(done.size)saveLocalRecent(localRecent().filter(x=>!done.has(x.drugKey)));
+}
+async function listRecent(){
+  let cloud=[],ok=false;
+  try{
+    const snap=await withTimeout(userCol('recentAnalyses').orderBy('lastViewedAt','desc').limit(DASH_RECENT_LIMIT).get(),CLOUD_TIMEOUT_MS);
+    cloud=snap.docs.map(d=>{
+      const x=d.data({serverTimestamps:'estimate'})||{},name=cleanName(x.name);
+      return {name,drugKey:x.drugKey||researchKey(name),reportCount:cleanCount(x.reportCount),lastViewedAt:x.lastViewedAt||x.createdAt||null};
+    }).filter(it=>it.name);
+    ok=true;noteCloud(true);
+  }catch(e){noteCloud(false,e);}
+  const local=localRecent();
+  if(ok&&local.length){try{await syncLocalRecent(local);}catch(e){noteCloud(false,e);}}
+  const byKey=new Map();
+  cloud.concat(local).forEach(it=>{
+    const prev=byKey.get(it.drugKey);
+    if(!prev||tsMs(it.lastViewedAt)>tsMs(prev.lastViewedAt))byKey.set(it.drugKey,it);
+  });
+  return [...byKey.values()].sort((a,b)=>tsMs(b.lastViewedAt)-tsMs(a.lastViewedAt)).slice(0,DASH_RECENT_LIMIT);
+}
+
+/* ----- research board ----- */
+function addedMs(it){return tsMs(it.createdAt)||tsMs(it.lastViewedAt);}
+function localResearch(){
+  const a=localGet('research',[]);
+  return (Array.isArray(a)?a:[]).filter(it=>it&&it.name&&it.drugKey).map(it=>({
+    id:'local_'+it.drugKey,ids:[],name:String(it.name),drugKey:String(it.drugKey),reportCount:cleanCount(it.reportCount),
+    createdAt:Number(it.createdAt)||0,lastViewedAt:Number(it.lastViewedAt)||0,_local:true
+  }));
+}
+function saveLocalResearch(list){
+  localSet('research',list.map(it=>({name:it.name,drugKey:it.drugKey,reportCount:cleanCount(it.reportCount),createdAt:tsMs(it.createdAt),lastViewedAt:tsMs(it.lastViewedAt)})));
+}
+async function cloudResearch(){
+  const snap=await withTimeout(userCol('research').limit(50).get(),CLOUD_TIMEOUT_MS);
+  const byKey=new Map();
+  snap.docs.forEach(d=>{
+    const x=d.data({serverTimestamps:'estimate'})||{},name=cleanName(x.name);
+    if(!name)return;
+    const it={id:d.id,ids:[d.id],name,drugKey:x.drugKey||researchKey(name),reportCount:cleanCount(x.reportCount),
+      createdAt:x.createdAt||null,lastViewedAt:x.lastViewedAt||null,_local:false};
+    const prev=byKey.get(it.drugKey);
+    if(!prev){byKey.set(it.drugKey,it);return;}
+    // Same medicine stored twice (older builds used random ids) — show once, remember every id so Remove clears all.
+    const ids=prev.ids.concat(it.ids);
+    const keep=addedMs(it)>addedMs(prev)?it:prev;
+    byKey.set(it.drugKey,{...keep,ids});
+  });
+  return [...byKey.values()];
+}
+async function syncLocalResearch(cloud,local){
+  const keys=new Set(cloud.map(it=>it.drugKey)),synced=new Set(),merged=cloud.slice();
+  for(const it of local){
+    if(keys.has(it.drugKey)){synced.add(it.drugKey);continue;} // already in the account — drop the device copy
+    try{
+      const created=it.createdAt||Date.now();
+      await withTimeout(userCol('research').doc(it.drugKey).set({
+        name:it.name,drugKey:it.drugKey,reportCount:it.reportCount,
+        createdAt:tsFromMs(created),lastViewedAt:tsFromMs(it.lastViewedAt||created)
+      },{merge:true}),CLOUD_TIMEOUT_MS);
+      synced.add(it.drugKey);keys.add(it.drugKey);
+      merged.push({...it,id:it.drugKey,ids:[it.drugKey],_local:false});
+    }catch(e){noteCloud(false,e);break;}
+  }
+  if(synced.size)saveLocalResearch(localResearch().filter(x=>!synced.has(x.drugKey)));
+  return merged;
+}
+/* Never throws. Returns cloud + device-only items, newest first. */
+async function listResearch(){
+  let cloud=[],ok=false;
+  try{cloud=await cloudResearch();ok=true;noteCloud(true);}catch(e){noteCloud(false,e);}
+  let local=localResearch();
+  if(ok&&local.length){
+    try{cloud=await syncLocalResearch(cloud,local);local=localResearch();}
+    catch(e){noteCloud(false,e);}
+  }
+  const keys=new Set(cloud.map(it=>it.drugKey));
+  return cloud.concat(local.filter(it=>!keys.has(it.drugKey))).sort((a,b)=>addedMs(b)-addedMs(a));
+}
+function researchItems(){return listResearch();}
+function recentItems(){return listRecent();}
+async function touchResearchItem(item,name,count){
+  if(item._local){
+    saveLocalResearch(localResearch().map(it=>it.drugKey===item.drugKey?{...it,name,reportCount:count!=null?count:it.reportCount,lastViewedAt:Date.now()}:it));
+    return;
+  }
+  try{
+    const patch={name,lastViewedAt:serverTs()};
+    if(count!=null)patch.reportCount=count;
+    await withTimeout(userCol('research').doc(item.id).set(patch,{merge:true}),CLOUD_TIMEOUT_MS);
+  }catch(e){noteCloud(false,e);}
 }
 async function touchResearchDrug(name,reportCount){
-  if(!currentUser||!name)return;
-  const db=userDb();if(!db)return;
+  const clean=cleanName(name);
+  if(!currentUser||!clean)return;
+  const key=researchKey(clean),count=cleanCount(reportCount);
   try{
-    const key=researchKey(name);
-    const snap=await db.collection('users').doc(currentUser.uid).collection('research').where('drugKey','==',key).limit(1).get();
-    if(!snap.empty){
-      await snap.docs[0].ref.set({
-        name:String(name).trim(),
-        reportCount:Number.isFinite(Number(reportCount))?Number(reportCount):null,
-        lastViewedAt:firebase.firestore.FieldValue.serverTimestamp()
-      },{merge:true});
-    }
-  }catch(e){console.warn('PharmaSafe: research touch failed:',e.message);}
+    const loc=localResearch().find(it=>it.drugKey===key);
+    if(loc)await touchResearchItem(loc,clean,count);
+    const snap=await withTimeout(userCol('research').where('drugKey','==',key).limit(1).get(),CLOUD_TIMEOUT_MS);
+    if(!snap.empty)await touchResearchItem({id:snap.docs[0].id,_local:false},clean,count);
+  }catch(e){noteCloud(false,e);}
 }
 function recordDrugAnalysis(name,reportCount){
   if(!currentUser)return;
   trackActivity('drugsAnalyzed');
   recordRecentDrug(name,reportCount);
   touchResearchDrug(name,reportCount);
-  if(currentSection==='dashboard')renderDashboard();
 }
 function recordReportExplored(reportId){if(currentUser&&reportId)trackActivity('reportsExplored');}
 function recordComparison(){if(currentUser)trackActivity('comparisons');}
-function researchItems(){return getUserItems('research',RESEARCH_BOARD_LIMIT);}
-function recentItems(){return getUserItems('recentAnalyses',DASH_RECENT_LIMIT);}
-function statValue(stats,key){
-  const n=Number(stats&&stats[key]);return Number.isFinite(n)&&n>=0?n:0;
+function hasLocalPending(){
+  const s=localGet('stats',{});
+  return localResearch().length>0||localRecent().length>0||STAT_KEYS.some(k=>statValue(s,k)>0);
 }
+function syncPersonalData(){
+  if(!currentUser||!hasLocalPending())return;
+  Promise.all([listResearch(),listRecent(),loadStats()]).catch(()=>{});
+}
+
 function updateResearchSelectionState(){
-  document.querySelectorAll('#researchList input[data-research-id]').forEach(cb=>{cb.checked=selectedResearchIds.has(cb.dataset.researchId);});
+  document.querySelectorAll('#researchList input[data-research-key]').forEach(cb=>{cb.checked=selectedResearchIds.has(cb.dataset.researchKey);});
   const count=selectedResearchIds.size,btn=$('compareSelectedBtn');
   if(btn){btn.disabled=count!==2;btn.textContent=count===2?'Compare Selected':'Compare Selected (select 2)';}
   const label=$('researchSelectionNote');if(label)label.textContent=count?`${count} selected`:'Select 2 medicines to compare';
+}
+function updateSyncNote(){
+  const el=$('dashSyncNote');if(!el)return;
+  if(cloudState.ok===false){
+    el.textContent='Cloud sync is temporarily unavailable, so your dashboard data is being kept on this device. It will sync to your account automatically as soon as the connection is restored.';
+    el.classList.add('show');
+  }else{el.textContent='';el.classList.remove('show');}
 }
 async function renderDashboard(){
   const token=++dashboardRenderToken;
@@ -1960,116 +2190,133 @@ async function renderDashboard(){
   $('recentList').innerHTML='<div class="dashLoading">Loading your recent activity…</div>';
   $('researchList').innerHTML='<div class="dashLoading">Loading your Research Board…</div>';
   try{
-    const db=userDb();if(!db)throw new Error('Your account database is not available yet.');
-    const [statsSnap,recent,research]=await Promise.all([
-      db.collection('users').doc(currentUser.uid).collection('activitySummary').doc('stats').get(),
-      recentItems(),researchItems()
-    ]);
+    // These three loaders never throw: each falls back to this device's copy.
+    const [stats,recent,research]=await Promise.all([loadStats(),listRecent(),listResearch()]);
     if(token!==dashboardRenderToken)return;
-    const stats=statsSnap.exists?statsSnap.data():{};
     $('dashStatDrugs').textContent=statValue(stats,'drugsAnalyzed').toLocaleString();
     $('dashStatReports').textContent=statValue(stats,'reportsExplored').toLocaleString();
     $('dashStatCompare').textContent=statValue(stats,'comparisons').toLocaleString();
     $('dashStatExports').textContent=statValue(stats,'exports').toLocaleString();
 
-    const validIds=new Set(research.map(x=>x.id));
-    selectedResearchIds=new Set([...selectedResearchIds].filter(id=>validIds.has(id)));
+    const validKeys=new Set(research.map(x=>x.drugKey));
+    selectedResearchIds=new Set([...selectedResearchIds].filter(k=>validKeys.has(k)));
     $('recentList').innerHTML=recent.length?recent.map(it=>`
       <div class="recentItem">
-        <div class="recentIdentity">${dashPillIcon()}<div><b>${esc(it.name)}</b><span>${formatDashDate(it.lastViewedAt||it.createdAt)}${it.reportCount!=null?` · ${Number(it.reportCount).toLocaleString()} reports at last analysis`:''}</span></div></div>
+        <div class="recentIdentity">${dashPillIcon()}<div><b>${esc(it.name)}</b><span>${formatDashDate(it.lastViewedAt)}${it.reportCount!=null?` · ${Number(it.reportCount).toLocaleString()} reports at last analysis`:''}</span></div></div>
         <button class="btn ghost smallBtn" type="button" onclick='dashOpenDrug(${esc(JSON.stringify(it.name))})'>View Analysis</button>
       </div>`).join(''):`<div class="dashEmptyState"><div class="emptyIcon">${dashPillIcon()}</div><b>No analyses yet</b><span>Search for a medicine to start exploring pharmacovigilance data.</span><button class="btn" type="button" onclick="go('drug')">Explore a Drug</button></div>`;
 
     $('researchList').innerHTML=research.length?research.map(it=>`
       <div class="researchItem">
         <label class="researchSelect" title="Select ${esc(it.name)} for comparison">
-          <input type="checkbox" data-research-id="${esc(it.id)}" onchange="toggleResearchSelection(this)">
+          <input type="checkbox" data-research-key="${esc(it.drugKey)}" onchange="toggleResearchSelection(this)">
           <span class="checkmark"></span>
         </label>
-        <div class="researchIdentity">${dashPillIcon()}<div><b>${esc(it.name)}</b><span>${formatDashDate(it.lastViewedAt||it.createdAt)}${it.reportCount!=null?` · ${Number(it.reportCount).toLocaleString()} reports`:''}</span></div></div>
+        <div class="researchIdentity">${dashPillIcon()}<div><b>${esc(it.name)}</b><span>${formatDashDate(it.lastViewedAt||it.createdAt)}${it.reportCount!=null?` · ${Number(it.reportCount).toLocaleString()} reports`:''}${it._local?' · saved on this device':''}</span></div></div>
         <div class="researchActions">
           <button class="btn ghost smallBtn" type="button" onclick='dashOpenDrug(${esc(JSON.stringify(it.name))})'>View Analysis</button>
-          <button class="removeResearch" type="button" title="Remove from Research Board" aria-label="Remove ${esc(it.name)} from Research Board" onclick="removeResearch('${esc(it.id)}')">Remove</button>
+          <button class="removeResearch" type="button" title="Remove from Research Board" aria-label="Remove ${esc(it.name)} from Research Board" onclick='removeResearch(${esc(JSON.stringify(it.drugKey))})'>Remove</button>
         </div>
       </div>`).join(''):`<div class="dashEmptyState researchEmpty"><div class="emptyIcon">${dashPillIcon()}</div><b>Your Research Board is empty</b><span>Add medicines while exploring PharmaSafe to build your personal research collection.</span><button class="btn" type="button" onclick="go('drug')">Explore a Drug</button></div>`;
     updateResearchSelectionState();
+    updateSyncNote();
   }catch(e){
+    // Defensive only — the loaders above cannot throw. Render an empty, usable board rather than an error wall.
     if(token!==dashboardRenderToken)return;
+    console.error('PharmaSafe: dashboard render failed:',e);
     ['dashStatDrugs','dashStatReports','dashStatCompare','dashStatExports'].forEach(id=>{if($(id))$(id).textContent='0';});
-    $('recentList').innerHTML='<div class="dashError">We could not load your activity right now. Your existing PharmaSafe tools are still available.</div>';
-    $('researchList').innerHTML='<div class="dashError">We could not load your Research Board right now. Please try again.</div>';
-    setDashMessage(e.message||'Dashboard data could not be loaded.');
+    $('recentList').innerHTML='<div class="dashEmptyState"><b>No analyses yet</b><span>Search for a medicine to start exploring pharmacovigilance data.</span><button class="btn" type="button" onclick="go(\'drug\')">Explore a Drug</button></div>';
+    $('researchList').innerHTML='<div class="dashEmptyState researchEmpty"><b>Your Research Board is empty</b><span>Add medicines while exploring PharmaSafe to build your personal research collection.</span><button class="btn" type="button" onclick="go(\'drug\')">Explore a Drug</button></div>';
   }
 }
 function dashOpenDrug(name){go('drug');$('drugName').value=name;drugSearch();}
 function toggleResearchSelection(cb){
-  const id=cb.dataset.researchId;
-  if(cb.checked)selectedResearchIds.add(id);else selectedResearchIds.delete(id);
+  const key=cb.dataset.researchKey;
+  if(cb.checked)selectedResearchIds.add(key);else selectedResearchIds.delete(key);
   updateResearchSelectionState();
 }
-async function addToResearch(name,reportCount,sourceBtn){
-  if(!currentUser){showAuthPrompt();throw new Error('Sign in required.');}
-  const clean=String(name||'').trim();if(!clean)throw new Error('No medicine was selected.');
-  clearDashMessage();
-  const db=userDb();
-  if(!db)throw new Error('Your account database is not available yet. Please try again.');
-  const key=researchKey(clean);
-  // Use a direct, non-swallowing read here. The dashboard renderer intentionally
-  // tolerates read failures, but an Add action must surface the real Firestore
-  // error instead of silently behaving as though the board were empty.
-  const snap=await db.collection('users').doc(currentUser.uid).collection('research')
-    .where('drugKey','==',key).limit(1).get();
-  const existing=snap.empty?null:{id:snap.docs[0].id,...snap.docs[0].data()};
-  if(existing){
-    selectedResearchIds.add(existing.id);
-    await updateUserItem('research',existing.id,{
-      name:clean,lastViewedAt:firebase.firestore.FieldValue.serverTimestamp(),
-      reportCount:Number.isFinite(Number(reportCount))?Number(reportCount):(existing.reportCount??null)
-    });
-    setDashMessage(`${clean} is already on your Research Board.`);
-  }else{
-    // Count the active board items without depending on an orderBy index.
-    const allSnap=await db.collection('users').doc(currentUser.uid).collection('research').get();
-    if(allSnap.size>=RESEARCH_BOARD_LIMIT){
-      const msg=`Your Research Board can hold up to ${RESEARCH_BOARD_LIMIT} active medicines. Remove one before adding another.`;
-      setDashMessage(msg);
-      throw new Error(msg);
-    }
-    const id=await addUserItem('research',{
-      name:clean,drugKey:key,
-      reportCount:Number.isFinite(Number(reportCount))?Number(reportCount):null,
-      lastViewedAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-    selectedResearchIds.add(id);
-    setDashMessage(`${clean} was added to your Research Board.`);
-  }
-  if(sourceBtn)sourceBtn.dataset.inResearch='1';
-  await updateResearchButton(clean);
+async function afterResearchChange(name){
+  await updateResearchButton(name);
   if(currentSection==='dashboard')await renderDashboard();
 }
-async function removeResearch(id){
-  try{await deleteUserItem('research',id);selectedResearchIds.delete(id);if(currentSection==='dashboard')renderDashboard();}
-  catch(e){setDashMessage('Could not remove that medicine. Please try again.');console.error('PharmaSafe: research remove failed:',e);}
+/* Resolves {status:'added'|'exists', where:'cloud'|'device'}; rejects only for
+   real user-facing conditions (not signed in, board full, empty name). */
+async function addToResearch(name,reportCount){
+  if(!currentUser){showAuthPrompt();throw new Error('Sign in required.');}
+  const clean=cleanName(name);
+  if(!clean)throw new Error('No medicine was selected.');
+  clearDashMessage();
+  const key=researchKey(clean),count=cleanCount(reportCount);
+  const items=await listResearch();
+  const existing=items.find(it=>it.drugKey===key);
+  if(existing){
+    await touchResearchItem(existing,clean,count);
+    selectedResearchIds.add(key);
+    await afterResearchChange(clean);
+    return {status:'exists',where:existing._local?'device':'cloud'};
+  }
+  if(items.length>=RESEARCH_BOARD_LIMIT)throw new Error(`Your Research Board can hold up to ${RESEARCH_BOARD_LIMIT} active medicines. Remove one before adding another.`);
+  let where='cloud';
+  try{
+    // Deterministic document id = the medicine key, so double-taps and later syncs can never create duplicates.
+    await withTimeout(userCol('research').doc(key).set({
+      name:clean,drugKey:key,reportCount:count,createdAt:serverTs(),lastViewedAt:serverTs()
+    },{merge:true}),CLOUD_TIMEOUT_MS);
+    noteCloud(true);
+  }catch(e){
+    noteCloud(false,e);
+    const now=Date.now();
+    const local=localResearch().filter(it=>it.drugKey!==key);
+    local.unshift({id:'local_'+key,ids:[],name:clean,drugKey:key,reportCount:count,createdAt:now,lastViewedAt:now,_local:true});
+    saveLocalResearch(local);
+    where='device';
+  }
+  selectedResearchIds.add(key);
+  await afterResearchChange(clean);
+  return {status:'added',where};
+}
+async function removeResearch(key){
+  try{
+    const items=await listResearch();
+    const it=items.find(x=>x.drugKey===key);
+    if(it&&!it._local){
+      const ids=it.ids&&it.ids.length?it.ids:[it.id];
+      await Promise.all(ids.map(id=>withTimeout(userCol('research').doc(id).delete(),CLOUD_TIMEOUT_MS)));
+    }
+    saveLocalResearch(localResearch().filter(x=>x.drugKey!==key));
+    selectedResearchIds.delete(key);
+    const btn=$('researchDrugBtn');
+    if(btn&&researchKey(btn.dataset.drugName||'')===key)await updateResearchButton(btn.dataset.drugName);
+    if(currentSection==='dashboard')await renderDashboard();
+  }catch(e){
+    setDashMessage('Could not remove that medicine. Please try again.');
+    console.error('PharmaSafe: research remove failed:',e);
+  }
 }
 async function updateResearchButton(name){
   const btn=$('researchDrugBtn');if(!btn)return;
-  if(!currentUser){btn.textContent='+ Add to Research';btn.disabled=false;return;}
+  if(!currentUser){btn.textContent='+ Add to Research';btn.dataset.inResearch='0';btn.disabled=false;return;}
   try{
-    const key=researchKey(name),items=await researchItems(),existing=items.find(it=>it.drugKey===key);
-    btn.textContent=existing?'✓ In Research':'+ Add to Research';
-    btn.dataset.inResearch=existing?'1':'0';btn.disabled=false;
-  }catch(e){btn.textContent='+ Add to Research';btn.disabled=false;}
+    const key=researchKey(name),items=await listResearch();
+    const b=$('researchDrugBtn');if(!b)return;
+    const inResearch=items.some(it=>it.drugKey===key);
+    b.textContent=inResearch?'✓ In Research':'+ Add to Research';
+    b.dataset.inResearch=inResearch?'1':'0';b.disabled=false;
+  }catch(e){
+    const b=$('researchDrugBtn');
+    if(b){b.textContent='+ Add to Research';b.disabled=false;}
+  }
 }
 async function addCurrentDrugToResearch(btn){
   btn=btn||$('researchDrugBtn');
   if(!btn)return;
-  const status=$('researchDrugStatus');
+  const say=text=>{const s=$('researchDrugStatus');if(s){s.textContent=text;s.classList.add('show');}};
   if(btn.dataset.busy==='1')return;
-  const name=String(btn.dataset.drugName||'').trim();
-  const reportCount=Number(btn.dataset.reportCount||NaN);
+  const name=cleanName(btn.dataset.drugName);
+  const reportCount=cleanCount(btn.dataset.reportCount);
   if(!name)return;
   if(!currentUser){
-    if(status){status.textContent='Please sign in to save medicines to your Research Board.';status.classList.add('show');}
+    say('Please sign in to save medicines to your Research Board.');
     showAuthPrompt();
     return;
   }
@@ -2078,12 +2325,14 @@ async function addCurrentDrugToResearch(btn){
   btn.setAttribute('aria-busy','true');
   const oldText=btn.textContent;
   btn.textContent='Adding…';
-  if(status){status.textContent='Saving to your Research Board…';status.classList.add('show');}
+  say('Saving to your Research Board…');
   try{
-    await addToResearch(name,reportCount,btn);
-    if(status){status.textContent=`${name} is now in your Research Board.`;status.classList.add('show');}
+    const r=await addToResearch(name,reportCount);
+    if(r.status==='exists')say(`${name} is already on your Research Board.`);
+    else if(r.where==='device')say(`${name} was added to your Research Board and saved on this device. It will sync to your account automatically.`);
+    else say(`${name} was added to your Research Board.`);
   }catch(e){
-    if(status){status.textContent=e?.message||'Could not add this medicine to your Research Board. Please try again.';status.classList.add('show');}
+    say((e&&e.message)||'Could not add this medicine to your Research Board. Please try again.');
     console.error('PharmaSafe: research add failed:',e);
   }finally{
     btn.dataset.busy='0';
@@ -2093,10 +2342,10 @@ async function addCurrentDrugToResearch(btn){
   }
 }
 async function dashCompareSelected(){
-  const ids=[...selectedResearchIds];
-  if(ids.length!==2){setDashMessage('Select exactly 2 medicines to use PharmaSafe’s existing comparison tool.');return;}
+  const keys=[...selectedResearchIds];
+  if(keys.length!==2){setDashMessage('Select exactly 2 medicines to use PharmaSafe’s existing comparison tool.');return;}
   try{
-    const items=await researchItems(),byId=new Map(items.map(x=>[x.id,x])),chosen=ids.map(id=>byId.get(id)).filter(Boolean);
+    const items=await listResearch(),byKey=new Map(items.map(x=>[x.drugKey,x])),chosen=keys.map(k=>byKey.get(k)).filter(Boolean);
     if(chosen.length!==2){setDashMessage('The selected medicines are no longer available. Refresh the dashboard and try again.');return;}
     $('cmpA').value=chosen[0].name;$('cmpB').value=chosen[1].name;go('compare');compareDrugs();
   }catch(e){setDashMessage('Could not open comparison. Please try again.');}
@@ -2253,7 +2502,9 @@ function enterApp(user){
   $('userPillName').textContent=name;
   $('userPill').style.display='flex';
   $('loginLink').style.display='none';
-  ensureUserProfile(user); // fire-and-forget: never blocks the UI on a Firestore round-trip
+  ensureAppCheck(); // signed-in users hit Firestore immediately, so App Check must already be active
+  // fire-and-forget: never blocks the UI on a Firestore round-trip; then push any device-held data to the account
+  Promise.resolve(ensureUserProfile(user)).then(syncPersonalData).catch(()=>{});
   if(currentSection==='dashboard')renderDashboard();
   if(currentSection==='drug' && $('researchDrugBtn'))updateResearchButton($('researchDrugBtn').dataset.drugName);
 }

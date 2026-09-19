@@ -20,6 +20,14 @@ rules_version = '2';
      name is used, so new personal-data features can ship without a
      rules change.
 
+  Collections the app uses under /users/{uid}/ (all covered by the single
+  wildcard match below — publish this file after ANY change, and re-publish
+  it if the console copy has drifted from this one):
+    favorites, medications, allergies, reminders   — Phase 2 dashboard lists
+    research          — My Research Board (doc id = medicine key)
+    recentAnalyses    — "Medicines you recently analyzed"
+    activitySummary   — activity counters (single doc: "stats")
+
   Anything not explicitly matched below is denied by default.
 */
 
