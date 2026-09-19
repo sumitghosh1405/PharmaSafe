@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://pharmasafe.site/</loc><changefreq>monthly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://pharmasafe.site/faers-guide.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://pharmasafe.site/signal-detection.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://pharmasafe.site/interpreting-reports.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://pharmasafe.site/methodology.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://pharmasafe.site/about.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://pharmasafe.site/disclaimer.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://pharmasafe.site/privacy.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://pharmasafe.site/terms.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://pharmasafe.site/</loc><lastmod>2026-09-20</lastmod><changefreq>monthly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://pharmasafe.site/faers-guide.html</loc><lastmod>2026-09-20</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://pharmasafe.site/signal-detection.html</loc><lastmod>2026-09-20</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://pharmasafe.site/interpreting-reports.html</loc><lastmod>2026-09-20</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://pharmasafe.site/methodology.html</loc><lastmod>2026-09-20</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://pharmasafe.site/about.html</loc><lastmod>2026-09-20</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://pharmasafe.site/disclaimer.html</loc><lastmod>2026-09-20</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://pharmasafe.site/privacy.html</loc><lastmod>2026-09-20</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://pharmasafe.site/terms.html</loc><lastmod>2026-09-20</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
 </urlset>

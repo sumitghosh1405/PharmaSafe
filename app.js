@@ -1701,14 +1701,23 @@ function exportLeaderboardPDF(btn){
 
 /* ---------- PWA: service worker + install prompts ---------- */
 if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('sw.js').catch(()=>{/* non-fatal: shell caching just won't be available */});
-  });
-  // When a new service worker version takes control (e.g. after a fresh
-  // deploy), the page it's already showing was still built by the old one —
-  // reload once so the app actually reflects the new version right away,
-  // instead of only updating on the *next* manual open.
   let swRefreshed=false;
+  const updateServiceWorker=async()=>{
+    try{
+      const reg=await navigator.serviceWorker.register('sw.js',{updateViaCache:'none'});
+      await reg.update();
+    }catch(_){/* non-fatal: app remains fully usable without PWA caching */}
+  };
+  window.addEventListener('load',updateServiceWorker,{once:true});
+  // Re-check whenever an installed PWA returns to the foreground. This makes
+  // deployed updates appear on the next open/focus without requiring users
+  // to reinstall the app or manually clear caches.
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible') updateServiceWorker();
+  });
+  window.addEventListener('pageshow',updateServiceWorker);
+  // Once the new worker takes control, reload exactly once so the running
+  // page immediately uses the new HTML/JS/CSS instead of the old controller.
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
     if(swRefreshed)return;
     swRefreshed=true;

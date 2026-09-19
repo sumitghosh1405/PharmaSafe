@@ -16,24 +16,11 @@ self.lary = ""
 importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw')
 
 // ===== PWA app shell caching =====
-// v1 used cache-first for index.html itself, so once installed, an updated
-// site never reached devices that already had the app cached (installed
-// home-screen icon included) until this file's own bytes changed enough
-// for the browser to notice. Two fixes: (1) the HTML document now uses
-// network-first, so any online open always gets the current deployed
-// version, falling back to cache only when genuinely offline; (2) the
-// cache name below is versioned, so bumping it on every deployment forces
-// every existing install to detect, install, and activate the new worker
-// immediately instead of silently keeping the old one.
-//
-// HOW TO USE: every time you push a change to the site, bump the number
-// in CACHE below (v5 -> v6 -> v7 -> v8 ...) and bump the matching ?v= query
-// string on the <script src="app.js?v=..."> tag in index.html to the same
-// number. That one-line change is what tells both the service worker and
-// the browser's own HTTP cache that this is a new version, so visitors —
-// including anyone with the app already installed to their home screen —
-// get the current version instead of an old cached one.
-const CACHE = 'pharmasafe-shell-v13';
+// Update strategy: network-first for every same-origin HTML/JS/CSS asset.
+// This means an installed PWA checks the deployed site whenever it opens or
+// returns to the foreground, while the cache remains an offline fallback.
+// No manual cache-version bump is required for normal site deployments.
+const CACHE = 'pharmasafe-shell-v14';
 const SHELL = [
   './manifest.json',
   './icons/icon-192.png',
@@ -53,23 +40,30 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  const url = e.request.url;
-  // Never cache live data calls — openFDA and CORS proxies must always hit the network.
-  if (url.includes('api.fda.gov') || url.includes('allorigins') || url.includes('corsproxy') || url.includes('codetabs')) {
-    return; // let the browser handle it normally
+  if (e.request.method !== 'GET') return;
+
+  const url = new URL(e.request.url);
+  // Never intercept external resources or live data calls. This preserves
+  // Monetag/Firebase/openFDA behavior exactly as before.
+  if (url.origin !== self.location.origin ||
+      url.hostname.includes('api.fda.gov') ||
+      url.hostname.includes('allorigins') ||
+      url.hostname.includes('corsproxy') ||
+      url.hostname.includes('codetabs')) {
+    return;
   }
 
-  const isDocument = e.request.mode === 'navigate' || url.endsWith('/index.html') || url.endsWith('.html');
+  const isDocument = e.request.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname === '/';
+  const isAppAsset = /\.(?:js|css)$/i.test(url.pathname);
 
-  if (isDocument) {
-    // Network-first: always try to get the current live page when online.
-    // Only fall back to the last cached copy if the network request fails
-    // (genuinely offline), which is the actual point of caching it at all.
+  if (isDocument || isAppAsset) {
+    // Bypass the browser HTTP cache so a newly deployed file is used as soon
+    // as the app is opened. The previous response remains the offline copy.
     e.respondWith(
-      fetch(e.request).then(res => {
+      fetch(e.request, { cache: 'no-store' }).then(res => {
         if (res.ok) {
           const copy = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, copy));
+          e.waitUntil(caches.open(CACHE).then(c => c.put(e.request, copy)));
         }
         return res;
       }).catch(() => caches.match(e.request))
@@ -77,15 +71,15 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Everything else (icons, manifest — rarely change): cache-first is fine,
-  // prioritizing instant load over freshness.
+  // Stable assets (icons/manifest/etc.) stay cache-first for fast startup,
+  // with a network fallback for anything not cached yet.
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
       return fetch(e.request).then(res => {
-        if (res.ok && e.request.method === 'GET') {
+        if (res.ok) {
           const copy = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, copy));
+          e.waitUntil(caches.open(CACHE).then(c => c.put(e.request, copy)));
         }
         return res;
       }).catch(() => cached);

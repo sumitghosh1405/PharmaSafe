@@ -116,57 +116,20 @@ no new backend work was needed, just the UI on top of it.
    doc and you should now see `medications`, `allergies`, `reminders`,
    and/or `favorites` subcollections with the entries you added.
 
-## Updating the live site (cache versioning)
+## Updating the live site (automatic PWA updates)
 
-The app is installable to a phone's home screen, so a returning visitor
-— installed or not — can otherwise get served an old cached copy after
-you push a change. Two things fix that, and both are already wired up;
-you only need to bump a number on every deploy:
+The installed web app is configured to check for a new deployment whenever it
+opens or returns to the foreground. HTML, JavaScript, and CSS use a
+network-first strategy with the previous copy retained only as an offline
+fallback. The service-worker registration also uses `updateViaCache: 'none'`,
+and a new worker takes control and reloads the running app once.
 
-1. In **`sw.js`**, increment the number in `const CACHE =
-   'pharmasafe-shell-vN'`.
-2. In **`index.html`**, bump the matching `?v=N` on
-   `<script src="app.js?v=N" defer></script>` to the same number.
+You therefore **do not need to manually bump a cache number or clear users'
+caches** for normal deployments. Users who open/return to the installed app
+will receive the deployed files automatically when they are online. A device
+that is completely offline cannot receive a server-side update until it
+regains connectivity and opens/foregrounds the app.
 
-Bumping both on each push forces the service worker to install and
-activate fresh, and forces browsers to fetch the current `app.js`
-instead of a cached one — so every visitor moves from whatever version
-they had to the one you just deployed, without needing to manually
-clear their cache.
-
-## Still not built (deliberately out of scope for this phase)
-
-- Reminder due-dates/notifications — currently just a saved note, no
-  alerting.
-- Editing an existing entry (delete + re-add works today).
-- Any of this feeding into the AI Copilot or Drug Interaction Lab —
-  those are separate phases that would *read* this same data once built.
-
-
----
-
-# Phase 3 — Research Board reliability fix (v13)
-
-Symptoms fixed: **+ Add to Research** showed "Missing or insufficient
-permissions." and **My Dashboard** showed "We could not load your activity /
-Research Board right now."
-
-## What was wrong
-
-1. **App Check used the wrong provider.** `firebase.appCheck().activate('<key>')`
-   in the compat SDK always builds a reCAPTCHA **v3** provider. PharmaSafe's key is
-   a reCAPTCHA **Enterprise** key, so no valid App Check token could ever be
-   produced; with Firestore enforcement on, every request is rejected as
-   "Missing or insufficient permissions". `app.js` now passes a
-   `ReCaptchaEnterpriseProvider` and activates App Check immediately before
-   Firestore is first used (still deferred until after first paint for anonymous
-   visitors).
-2. **The dashboard had no fallback.** One rejected read blanked both panels and
-   the Add button surfaced the raw Firestore error.
-
-## What changed in the app
-
-- Research Board, recent analyses and activity counters are written to Firestore
   first. If Firestore rejects or can't be reached, the data is kept in this
   browser (per signed-in user), the UI keeps working, and it is synced to the
   account automatically once Firestore is reachable (no duplicates: the
@@ -177,7 +140,7 @@ Research Board right now."
 
 ## Deploy checklist (do all three)
 
-1. Bump/upload: `app.js`, `index.html` (`app.js?v=13`), `sw.js` (`shell-v13`).
+1. Upload/push your changed site files. No manual PWA cache-version bump is required; the service worker checks for the new deployment automatically.
 2. **Publish the rules** in this folder:
    `firebase deploy --only firestore:rules`
    (or paste `firestore.rules` into Firebase console → Firestore → Rules → Publish).
